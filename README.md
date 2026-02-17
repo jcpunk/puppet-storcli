@@ -240,6 +240,9 @@ If you have access to different MegaRAID controllers and want to contribute test
 2. See **[FIXTURE_COLLECTION_GUIDE.md](FIXTURE_COLLECTION_GUIDE.md)** for comprehensive documentation
 3. Use the automated script: `sudo ./scripts/collect_fixtures.sh`
 4. See **[FIXTURE_TEST_TEMPLATE.md](FIXTURE_TEST_TEMPLATE.md)** for adding test cases
+5. See **[DYNAMIC_TESTING.md](DYNAMIC_TESTING.md)** for how tests automatically discover fixtures
+
+**Important:** Tests automatically pick up new fixtures - just add them to `spec/fixtures/<model>/` and run tests!
 
 Good test coverage requires fixtures from diverse hardware:
 - Different controller models (LSI 3108, 9560, Dell PERC, etc.)
