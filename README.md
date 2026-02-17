@@ -31,15 +31,102 @@ The package needs to be available from some repository to be installed.
 
 ## Usage
 
+### Basic Usage
+
 ```puppet
 include storcli
 ```
 
-Optionally, to skip over configuration of the card.
+### Version 2.0+ Hash-Based Configuration
+
+Version 2.0 introduces a Hash-based configuration approach that allows for more flexible controller management:
+
+```puppet
+class { 'storcli':
+  controller_defaults => {
+    autorebuild         => true,
+    rebuildrate         => 60,
+    perfmode            => 0,
+    ncq                 => true,
+    cacheflushinterval  => 4,
+    alarm               => true,
+    smartpollinterval   => 60,
+    patrolread_mode     => 'auto',
+    patrolread_delay    => 336,
+    patrolread_rate     => 30,
+    consistencycheck_mode  => 'conc',
+    consistencycheck_delay => 672,
+    consistencycheck_rate  => 30,
+  },
+}
+```
+
+### Per-Controller Overrides
+
+You can override settings for specific controllers:
+
+```puppet
+class { 'storcli':
+  controller_defaults => {
+    autorebuild => true,
+    rebuildrate => 60,
+    alarm       => true,
+  },
+  controller_overrides => {
+    1 => {
+      alarm       => false,  # Disable alarm on controller 1
+      rebuildrate => 30,     # Use different rebuild rate
+    },
+  },
+}
+```
+
+### Virtual Drive Cache Settings (New in 2.0)
+
+Manage virtual drive cache policies:
+
+```puppet
+class { 'storcli':
+  vd_defaults => {
+    wrcache  => 'wt',      # Write-through cache
+    rdcache  => 'ra',      # Read-ahead cache
+    iopolicy => 'direct',  # Direct I/O
+    pdcache  => 'default', # Use disk's default cache setting
+  },
+  vd_overrides => {
+    '0/0' => {             # Controller 0, VD 0
+      wrcache => 'wb',     # Write-back cache for this VD
+    },
+  },
+}
+```
+
+### Pick-and-Choose Settings
+
+Only specify the settings you want to manage:
+
+```puppet
+class { 'storcli':
+  controller_defaults => {
+    autorebuild => true,
+    alarm       => false,
+  },
+  # Only autorebuild and alarm will be managed
+  # All other settings remain at their current values
+}
+```
+
+### Disable Configuration Management
+
+Optionally, to skip over configuration of the card:
 
 ```yaml
 storcli::configure_settings: false
 ```
+
+### Migration from v1.x
+
+If you're upgrading from version 1.x, see [MIGRATION.md](MIGRATION.md) for detailed migration instructions.
 
 ## Reference
 
@@ -89,11 +176,9 @@ See [REFERENCE](REFERENCE.md) for all other reference documentation.
 
 ## Limitations
 
-For now, this module only provides a custom fact and ways to deal with patrol read and consistency check.
+Version 2.0+ now supports per-controller configuration through the `controller_overrides` parameter, allowing different settings for each controller.
 
-This module does not provide the `storcli` or `perccli` packages, you must do that yourself.  If the `package` provider can load them, they will be installed automatically.
-
-The card configuration has not been tested on systems with multiple MegaRAID cards.  It should work, but it will set all cards to identical values.
+This module does not provide the `storcli` or `perccli` packages, you must do that yourself. If the `package` provider can load them, they will be installed automatically.
 
 Minimum `storcli`/`perccli` versions:
 
