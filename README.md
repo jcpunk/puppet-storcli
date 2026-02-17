@@ -195,7 +195,37 @@ See [REFERENCE](REFERENCE.md) for all other reference documentation.
       - **Performance Mode** - Integer - Performance mode (0-6)
       - **Cache Flush Interval** - Integer - Cache flush interval in seconds
       - **SMART Poll Interval** - Integer - SMART poll interval in seconds
+      - **Maintain PD Fail History** - String - Maintain PD fail history (On/Off/Un-supported)
+      - **Enclosure PD** - String - Enclosure PD management (On/Off/Un-supported)
       - Note: Settings show "Un-supported" if not available on controller
+    - **bbu_info** - Hash - BBU/CacheVault health information
+      - **state** - String - BBU state (Optimal/Degraded/Un-supported)
+      - **type** - String - BBU type (BBU/CacheVault/Un-supported)
+      - **charge_percent** - Mixed - Charge percentage or "Un-supported"
+      - **replacement_needed** - Boolean or String - Whether BBU needs replacement or "Un-supported"
+      - **learn_cycle_active** - Boolean - Whether learn cycle is active
+      - **temperature** - String - BBU temperature or "Unknown"
+    - **physical_drive_summary** - Hash - Aggregate physical drive statistics
+      - **total_drives** - Integer - Total number of physical drives
+      - **drives_by_state** - Hash - Count of drives by state (Onln, GHS, DHS, Offln, UGood, etc.)
+      - **drives_by_type** - Hash - Count of drives by interface type (SAS, SATA, NVMe)
+      - **drives_by_media** - Hash - Count of drives by media type (HDD, SSD)
+      - **total_capacity** - String - Total capacity of all drives (formatted)
+      - **predictive_failures** - Integer - Number of drives with predictive failures
+    - **vd_properties** - Hash[VD ID] - Static configuration properties per virtual drive
+      - **stripe_size** - String - Stripe size (e.g., "256 KB")
+      - **span_depth** - Integer - Number of spans
+      - **number_of_drives_per_span** - Integer - Drives per span
+      - **default_cache_policy** - String - Default cache policy
+      - **current_cache_policy** - String - Current cache policy
+      - **default_write_policy** - String - Default write policy
+      - **current_write_policy** - String - Current write policy
+      - **default_read_policy** - String - Default read policy
+      - **current_read_policy** - String - Current read policy
+      - **is_vd_boot_drive** - String - Whether VD is boot drive (Yes/No)
+      - **disk_cache_policy** - String - Physical disk cache policy
+
+For complete details on fact enhancements, see **[FACT_ENHANCEMENTS.md](FACT_ENHANCEMENTS.md)**.
 
 ### PuppetDB Queries
 
