@@ -109,12 +109,15 @@ Only specify the settings you want to manage:
 class { 'storcli':
   controller_defaults => {
     autorebuild => true,
+    copyback    => true,  # New in v2.1
     alarm       => false,
   },
-  # Only autorebuild and alarm will be managed
+  # Only autorebuild, copyback, and alarm will be managed
   # All other settings remain at their current values
 }
 ```
+
+For a complete list of available settings, see [CONTROLLER_SETTINGS.md](CONTROLLER_SETTINGS.md).
 
 ### Disable Configuration Management
 
@@ -127,6 +130,13 @@ storcli::configure_settings: false
 ### Migration from v1.x
 
 If you're upgrading from version 1.x, see [MIGRATION.md](MIGRATION.md) for detailed migration instructions.
+
+## Documentation
+
+- **[CONTROLLER_SETTINGS.md](CONTROLLER_SETTINGS.md)** - Complete reference of all controller settings, including supported and unsupported features
+- **[MIGRATION.md](MIGRATION.md)** - Migration guide from v1.x to v2.x
+- **[PUPPETDB_QUERIES.md](PUPPETDB_QUERIES.md)** - PuppetDB query examples for inventory and tracking
+- **[FIXTURE_COLLECTION_GUIDE.md](FIXTURE_COLLECTION_GUIDE.md)** - Guide for collecting test fixtures
 
 ## Reference
 
