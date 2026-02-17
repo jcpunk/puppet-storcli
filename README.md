@@ -232,6 +232,19 @@ Older versions may work, but may not...
 
 Contributions are welcome through pull requests. I will only accept PRs with tests covering the parts of the code you touched.
 
+### Analysis & Planning
+
+Before contributing new features, review these analysis documents:
+
+- **[MISSING_FACT_SETTINGS.md](MISSING_FACT_SETTINGS.md)** - Analysis of storcli settings not currently in facts and whether they should be added
+- **[UNMANAGED_FEATURES.md](UNMANAGED_FEATURES.md)** - Analysis of storcli features not currently managed by the module, implementation proposals, and risk assessments
+
+These documents provide comprehensive guidance on:
+- Which settings should/shouldn't be added to facts
+- Which features are safe to automate vs require manual intervention
+- Implementation priorities and effort estimates
+- Fixture collection requirements for new features
+
 ### Adding Fixture Data
 
 If you have access to different MegaRAID controllers and want to contribute test fixtures:
