@@ -85,8 +85,16 @@ Puppet::Type.type(:megaraid_consistency_check).provide(:storcli) do
   end
 
   def rate
-    output = execute_command('show ccrate')
-    match = output.match(/CC Rate.*?(\d+)%/)
+    output = execute_command('show ccrate', use_json: true)
+    data = parse_json_response(output)
+    return :absent unless data
+    
+    properties = data['Controller Properties'] || []
+    prop = properties.find { |p| p['Ctrl_Prop'] == 'CC Rate' }
+    return :absent unless prop
+    
+    value = prop['Value']
+    match = value.to_s.match(/(\d+)%?/)
     match ? match[1] : :absent
   rescue Puppet::ExecutionFailure => e
     Puppet.warning("Failed to get consistency check rate: #{e.message}")
@@ -99,11 +107,26 @@ Puppet::Type.type(:megaraid_consistency_check).provide(:storcli) do
 
   private
 
-  def execute_command(cmd)
-    full_cmd = "#{storcli} #{controller_path} #{cmd} nolog"
+  def execute_command(cmd, use_json: false)
+    flags = use_json ? 'J nolog' : 'nolog'
+    full_cmd = "#{storcli} #{controller_path} #{cmd} #{flags}"
     Puppet.debug("Executing: #{full_cmd}")
     output = execute(full_cmd.split(' '), failonfail: true, combine: true)
     Puppet.debug("Command output: #{output}")
     output
+  end
+
+  def parse_json_response(json_str)
+    data = JSON.parse(json_str)
+    controllers = data.fetch('Controllers', [])
+    return nil if controllers.empty?
+    
+    controller = controllers[0]
+    return nil if controller.dig('Command Status', 'Status') == 'Failure'
+    
+    controller.dig('Response Data')
+  rescue JSON::ParserError, StandardError => e
+    Puppet.warning("Failed to parse JSON response: #{e.message}")
+    nil
   end
 end

@@ -89,8 +89,9 @@ Puppet::Type.type(:megaraid_vd_setting).provide(:storcli) do
     execute_command("set #{setting}=#{new_value}")
   end
 
-  def execute_command(cmd)
-    full_cmd = "#{storcli} #{vd_path} #{cmd} nolog"
+  def execute_command(cmd, use_json: false)
+    flags = use_json ? 'J nolog' : 'nolog'
+    full_cmd = "#{storcli} #{vd_path} #{cmd} #{flags}"
     Puppet.debug("Executing: #{full_cmd}")
     output = execute(full_cmd.split(' '), failonfail: true, combine: true)
     Puppet.debug("Command output: #{output}")

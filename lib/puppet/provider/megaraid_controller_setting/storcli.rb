@@ -104,48 +104,104 @@ Puppet::Type.type(:megaraid_controller_setting).provide(:storcli) do
     end
   end
 
-  def execute_command(cmd)
-    full_cmd = "#{storcli} #{controller_path} #{cmd} nolog"
+  def execute_command(cmd, use_json: false)
+    flags = use_json ? 'J nolog' : 'nolog'
+    full_cmd = "#{storcli} #{controller_path} #{cmd} #{flags}"
     Puppet.debug("Executing: #{full_cmd}")
     output = execute(full_cmd.split(' '), failonfail: true, combine: true)
     Puppet.debug("Command output: #{output}")
     output
   end
 
-  def get_boolean_setting(cmd, pattern)
-    output = execute_command("show #{cmd}")
-    if output.match(/#{Regexp.escape(pattern)}.*\bON\b/i)
+  def parse_json_response(json_str)
+    data = JSON.parse(json_str)
+    controllers = data.fetch('Controllers', [])
+    return nil if controllers.empty?
+    
+    controller = controllers[0]
+    return nil if controller.dig('Command Status', 'Status') == 'Failure'
+    
+    controller.dig('Response Data')
+  rescue JSON::ParserError, StandardError => e
+    Puppet.warning("Failed to parse JSON response: #{e.message}")
+    nil
+  end
+
+  def get_boolean_setting(cmd, json_key)
+    output = execute_command("show #{cmd}", use_json: true)
+    data = parse_json_response(output)
+    return :absent unless data
+    
+    # Look for the value in Controller Properties
+    properties = data['Controller Properties'] || []
+    prop = properties.find { |p| p['Ctrl_Prop'] == json_key }
+    return :absent unless prop
+    
+    value = prop['Value']
+    if value =~ /\bON\b/i
       'on'
-    elsif output.match(/#{Regexp.escape(pattern)}.*\bOFF\b/i)
+    elsif value =~ /\bOFF\b/i
       'off'
     else
       :absent
     end
   end
 
-  def get_percentage_setting(cmd, pattern)
-    output = execute_command("show #{cmd}")
-    match = output.match(/#{Regexp.escape(pattern)}.*?(\d+)%/)
+  def get_percentage_setting(cmd, json_key)
+    output = execute_command("show #{cmd}", use_json: true)
+    data = parse_json_response(output)
+    return :absent unless data
+    
+    properties = data['Controller Properties'] || []
+    prop = properties.find { |p| p['Ctrl_Prop'] == json_key }
+    return :absent unless prop
+    
+    value = prop['Value']
+    match = value.to_s.match(/(\d+)%?/)
     match ? match[1] : :absent
   end
 
-  def get_numeric_setting(cmd, pattern)
-    output = execute_command("show #{cmd}")
-    match = output.match(/#{Regexp.escape(pattern)}.*?(\d+)/)
+  def get_numeric_setting(cmd, json_key)
+    output = execute_command("show #{cmd}", use_json: true)
+    data = parse_json_response(output)
+    return :absent unless data
+    
+    properties = data['Controller Properties'] || []
+    prop = properties.find { |p| p['Ctrl_Prop'] == json_key }
+    return :absent unless prop
+    
+    value = prop['Value']
+    match = value.to_s.match(/(\d+)/)
     match ? match[1] : :absent
   end
 
-  def get_time_setting(cmd, pattern)
-    output = execute_command("show #{cmd}")
-    match = output.match(/#{Regexp.escape(pattern)}.*?(\d+)\s+sec/)
+  def get_time_setting(cmd, json_key)
+    output = execute_command("show #{cmd}", use_json: true)
+    data = parse_json_response(output)
+    return :absent unless data
+    
+    properties = data['Controller Properties'] || []
+    prop = properties.find { |p| p['Ctrl_Prop'] == json_key }
+    return :absent unless prop
+    
+    value = prop['Value']
+    match = value.to_s.match(/(\d+)\s*sec/)
     match ? match[1] : :absent
   end
 
   def get_alarm_setting
-    output = execute_command('show alarm')
-    if output.match(/Alarm.*\bON\b/i)
+    output = execute_command('show alarm', use_json: true)
+    data = parse_json_response(output)
+    return :absent unless data
+    
+    properties = data['Controller Properties'] || []
+    prop = properties.find { |p| p['Ctrl_Prop'] == 'Alarm' }
+    return 'off' unless prop  # Alarm ABSENT means off
+    
+    value = prop['Value']
+    if value =~ /\bON\b/i
       'on'
-    elsif output.match(/Alarm.*\bOFF\b/i) || output.match(/ABSENT/i)
+    elsif value =~ /\bOFF\b/i || value =~ /ABSENT/i
       'off'
     else
       :absent

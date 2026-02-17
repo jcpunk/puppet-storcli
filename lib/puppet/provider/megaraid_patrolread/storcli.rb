@@ -84,8 +84,16 @@ Puppet::Type.type(:megaraid_patrolread).provide(:storcli) do
   end
 
   def rate
-    output = execute_command('show prrate')
-    match = output.match(/Patrol Read Rate.*?(\d+)%/)
+    output = execute_command('show prrate', use_json: true)
+    data = parse_json_response(output)
+    return :absent unless data
+    
+    properties = data['Controller Properties'] || []
+    prop = properties.find { |p| p['Ctrl_Prop'] == 'Patrol Read Rate' }
+    return :absent unless prop
+    
+    value = prop['Value']
+    match = value.to_s.match(/(\d+)%?/)
     match ? match[1] : :absent
   rescue Puppet::ExecutionFailure => e
     Puppet.warning("Failed to get patrol read rate: #{e.message}")
@@ -118,9 +126,17 @@ Puppet::Type.type(:megaraid_patrolread).provide(:storcli) do
   end
 
   def uncfgareas
-    output = execute_command('show patrolRead')
-    return 'on' if output.match(/PR on EPD.*Enabled/i)
-    return 'off' if output.match(/PR on EPD.*Disabled/i)
+    output = execute_command('show patrolRead', use_json: true)
+    data = parse_json_response(output)
+    return :absent unless data
+    
+    properties = data['Controller Properties'] || []
+    prop = properties.find { |p| p['Ctrl_Prop'] == 'PR on EPD' }
+    return :absent unless prop
+    
+    value = prop['Value']
+    return 'on' if value =~ /Enabled/i
+    return 'off' if value =~ /Disabled/i
     
     :absent
   rescue Puppet::ExecutionFailure => e
@@ -135,11 +151,26 @@ Puppet::Type.type(:megaraid_patrolread).provide(:storcli) do
 
   private
 
-  def execute_command(cmd)
-    full_cmd = "#{storcli} #{controller_path} #{cmd} nolog"
+  def execute_command(cmd, use_json: false)
+    flags = use_json ? 'J nolog' : 'nolog'
+    full_cmd = "#{storcli} #{controller_path} #{cmd} #{flags}"
     Puppet.debug("Executing: #{full_cmd}")
     output = execute(full_cmd.split(' '), failonfail: true, combine: true)
     Puppet.debug("Command output: #{output}")
     output
+  end
+
+  def parse_json_response(json_str)
+    data = JSON.parse(json_str)
+    controllers = data.fetch('Controllers', [])
+    return nil if controllers.empty?
+    
+    controller = controllers[0]
+    return nil if controller.dig('Command Status', 'Status') == 'Failure'
+    
+    controller.dig('Response Data')
+  rescue JSON::ParserError, StandardError => e
+    Puppet.warning("Failed to parse JSON response: #{e.message}")
+    nil
   end
 end
