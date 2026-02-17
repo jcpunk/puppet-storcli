@@ -193,6 +193,23 @@ Older versions may work, but may not...
 
 Contributions are welcome through pull requests. I will only accept PRs with tests covering the parts of the code you touched.
 
+### Adding Fixture Data
+
+If you have access to different MegaRAID controllers and want to contribute test fixtures:
+
+1. See **[FIXTURE_SUMMARY.md](FIXTURE_SUMMARY.md)** for a quick start guide
+2. See **[FIXTURE_COLLECTION_GUIDE.md](FIXTURE_COLLECTION_GUIDE.md)** for comprehensive documentation
+3. Use the automated script: `sudo ./scripts/collect_fixtures.sh`
+4. See **[FIXTURE_TEST_TEMPLATE.md](FIXTURE_TEST_TEMPLATE.md)** for adding test cases
+
+Good test coverage requires fixtures from diverse hardware:
+- Different controller models (LSI 3108, 9560, Dell PERC, etc.)
+- Both storcli and perccli variants
+- Multi-controller systems
+- Various cache configurations and RAID levels
+
+### Running Tests
+
 Before sending the PR, run the tests and regenerate puppet strings references:
 
 ```
