@@ -174,6 +174,22 @@ See [REFERENCE](REFERENCE.md) for all other reference documentation.
       - **CC Number of VD completed** - Integer - Number of VDs completed
       - **CC Excluded VDs** - String - VDs that will not run patrol read
 
+### PuppetDB Queries
+
+If you have PuppetDB set up, you can query for MegaRAID controllers across your infrastructure. See **[PUPPETDB_QUERIES.md](PUPPETDB_QUERIES.md)** for comprehensive examples including:
+
+- Listing all hosts with controllers
+- Grouping by controller model
+- Finding specific firmware versions
+- Identifying cache policy configurations
+- Multi-controller system detection
+
+**Quick example:**
+```bash
+# List all different controller models in your infrastructure
+puppet query 'facts { name = "megaraid" } | extract value.controllers.*.product_name | unique()'
+```
+
 ## Limitations
 
 Version 2.0+ now supports per-controller configuration through the `controller_overrides` parameter, allowing different settings for each controller.
