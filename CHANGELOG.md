@@ -2,6 +2,73 @@
 
 All notable changes to this project will be documented in this file.
 
+## Release 2.0.0
+
+**BREAKING CHANGES**
+
+This is a major API-breaking refactor that modernizes the module architecture:
+
+* **Hash-based Configuration**: Replaced flat controller parameters with Hash-based `controller_defaults` and `controller_overrides` parameters
+* **Per-Controller Overrides**: Now supports different settings for individual controllers via `controller_overrides`
+* **Custom Puppet Types/Providers**: Replaced exec-based configuration with proper custom types:
+  - `megaraid_controller_setting` - Manages controller-level settings (autorebuild, rebuildrate, perfmode, ncq, cacheflushinterval, bootwithpinnedcache, alarm, smartpollinterval)
+  - `megaraid_patrolread` - Manages patrol read settings
+  - `megaraid_consistency_check` - Manages consistency check settings
+  - `megaraid_vd_setting` - Manages virtual drive settings (NEW: wrcache, rdcache, iopolicy, pdcache)
+* **Modular Class Structure**: Split monolithic `configure.pp` into logical private classes:
+  - `storcli::configure::controller`
+  - `storcli::configure::patrolread`
+  - `storcli::configure::consistencycheck`
+  - `storcli::configure::virtual_drives`
+* **Pick-and-Choose Settings**: Only settings specified in the defaults/overrides hashes are managed
+* **Virtual Drive Cache Settings**: Added support for VD-level cache policies (wrcache, rdcache, iopolicy, pdcache)
+
+**Migration Guide**
+
+Old parameter format:
+```puppet
+class { 'storcli':
+  controller_autorebuild => true,
+  controller_rebuildrate => 60,
+  controller_alarm       => true,
+}
+```
+
+New Hash-based format:
+```puppet
+class { 'storcli':
+  controller_defaults => {
+    autorebuild  => true,
+    rebuildrate  => 60,
+    alarm        => true,
+  },
+  controller_overrides => {
+    1 => {
+      alarm       => false,
+      rebuildrate => 30,
+    },
+  },
+  vd_defaults => {
+    wrcache  => 'wt',
+    rdcache  => 'ra',
+    iopolicy => 'direct',
+  },
+}
+```
+
+**Features**
+
+* Custom Puppet types provide idempotent, provider-based resource management
+* Per-controller configuration overrides for heterogeneous environments
+* Virtual drive cache policy management (wrcache, rdcache, iopolicy, pdcache)
+* Selective setting management - only specified settings are enforced
+* Improved code organization with private sub-classes
+
+**Removed**
+
+* All flat `controller_*` parameters have been removed from `storcli` class
+* `controller_manage_rebuild` and `controller_manage_alarm` parameters removed (use Hash-based approach instead)
+
 ## Release 1.2.0
 
 **Features**
