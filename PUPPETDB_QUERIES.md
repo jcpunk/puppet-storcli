@@ -150,9 +150,58 @@ inventory[certname] {
 
 ## Analysis Queries
 
+### Hostname-to-Firmware Mapping
+
+**Get a complete mapping of hostname to firmware version:**
+
+```puppet
+inventory[certname] {
+  facts.megaraid.number_of_controllers > 0
+} | extract certname, 
+    facts.megaraid.controllers.*.product_name,
+    facts.megaraid.controllers.*.fw_version,
+    facts.megaraid.controllers.*.serial_number
+```
+
+**Expected output shows hostname first:**
+```json
+[
+  {
+    "certname": "server01.example.com",
+    "facts.megaraid.controllers.*.product_name": ["AVAGO 3108 MegaRAID"],
+    "facts.megaraid.controllers.*.fw_version": ["4.680.00-8290"],
+    "facts.megaraid.controllers.*.serial_number": ["FW-BAMQTHEAARBWA"]
+  },
+  {
+    "certname": "server02.example.com",
+    "facts.megaraid.controllers.*.product_name": ["Dell PERC H730P"],
+    "facts.megaraid.controllers.*.fw_version": ["25.5.5.0005"],
+    "facts.megaraid.controllers.*.serial_number": ["CN0H730P12345"]
+  }
+]
+```
+
+### Group Hosts by Firmware Version
+
+**See which hosts are running each firmware version:**
+
+```puppet
+inventory[certname] {
+  facts.megaraid.number_of_controllers > 0
+} | extract certname, facts.megaraid.controllers.*.fw_version
+```
+
+Then use jq to group:
+```bash
+puppet query 'inventory[certname] { 
+  facts.megaraid.number_of_controllers > 0 
+} | extract certname, facts.megaraid.controllers.*.fw_version' \
+--render-as json | jq 'group_by(.["facts.megaraid.controllers.*.fw_version"][0])'
+```
+
 ### Group by Controller Type
 
-Get a summary of controller types in your infrastructure:
+Get a summary of controller types with hostnames in your infrastructure:
 
 **PQL Query:**
 ```puppet
