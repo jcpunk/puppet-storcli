@@ -57,6 +57,10 @@ Puppet::Type.type(:megaraid_controller_setting).provide(:storcli) do
     case setting
     when 'autorebuild'
       get_boolean_setting('autorebuild', 'AutoRebuild')
+    when 'copyback'
+      get_boolean_setting('copyback', 'Copy Back')
+    when 'jbod'
+      get_boolean_setting('jbod', 'JBOD')
     when 'rebuildrate'
       get_percentage_setting('rebuildrate', 'Rebuildrate')
     when 'perfmode'
@@ -85,6 +89,10 @@ Puppet::Type.type(:megaraid_controller_setting).provide(:storcli) do
     case setting
     when 'autorebuild'
       set_boolean_setting('autorebuild', new_value)
+    when 'copyback'
+      set_boolean_setting('copyback', new_value)
+    when 'jbod'
+      set_boolean_setting('jbod', new_value)
     when 'rebuildrate'
       execute_command("set rebuildrate=#{new_value}")
     when 'perfmode'

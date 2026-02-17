@@ -173,6 +173,19 @@ See [REFERENCE](REFERENCE.md) for all other reference documentation.
       - **CC Number of iterations** - Integer - How many times patrol read ran?
       - **CC Number of VD completed** - Integer - Number of VDs completed
       - **CC Excluded VDs** - String - VDs that will not run patrol read
+    - **controller_settings** - Hash - Controller configuration settings
+      - **Auto Rebuild** - String - Auto rebuild status (On/Off/Un-supported)
+      - **Copy Back** - String - Copy back status (On/Off/Un-supported)
+      - **JBOD** - String - JBOD mode (On/Off/Un-supported)
+      - **NCQ Status** - String - NCQ status (Enabled/Disabled/Un-supported)
+      - **Boot With Pinned Cache** - String - Boot with pinned cache (On/Off/Un-supported)
+      - **Alarm** - String - Alarm status (On/Off/Un-supported)
+      - **Load Balance Mode** - String - Load balance mode (Auto/None/Un-supported)
+      - **Rebuild Rate** - Integer - Rebuild rate percentage
+      - **Performance Mode** - Integer - Performance mode (0-6)
+      - **Cache Flush Interval** - Integer - Cache flush interval in seconds
+      - **SMART Poll Interval** - Integer - SMART poll interval in seconds
+      - Note: Settings show "Un-supported" if not available on controller
 
 ### PuppetDB Queries
 

@@ -48,6 +48,7 @@ class Megaraid
   def all_info
     Dir.chdir('/tmp') do
       controller_info
+      controller_settings_info
       pr_info
       cc_info
     end
@@ -75,6 +76,92 @@ class Megaraid
       next if id.nil?
 
       @controller_info[id] = controller.fetch('Response Data', {})
+    end
+  end
+
+  # Get controller settings information
+  def controller_settings_info
+    @controller_settings = {}
+    return unless present?
+    return unless storcli
+    return unless defined?(@controller_info) && !@controller_info.empty?
+
+    @controller_info.each_key do |controller_id|
+      settings = {}
+      
+      raw = Facter::Util::Resolution.exec("#{storcli} /c#{controller_id} show all J nolog")
+      next unless raw && !raw.empty?
+
+      output = begin
+                 JSON.parse(raw)
+               rescue
+                 nil
+               end
+      next unless output.is_a?(Hash)
+
+      controller_data = output.fetch('Controllers', [])[0]
+      next unless controller_data
+      
+      response_data = controller_data.dig('Response Data') || {}
+      
+      # Extract controller properties which contain settings
+      controller_props = response_data.dig('Controller Properties') || {}
+      
+      # Parse each setting, marking as Un-supported if not present
+      if controller_props.empty?
+        # If we can't get settings, mark as unsupported
+        settings['Auto Rebuild'] = 'Un-supported'
+        settings['Copy Back'] = 'Un-supported'
+        settings['JBOD'] = 'Un-supported'
+      else
+        controller_props.each do |prop|
+          key = prop['Ctrl_Prop']
+          val = prop['Value']
+          
+          # Capture all relevant settings
+          case key
+          when 'Auto Rebuild',
+               'Copy Back',
+               'NCQ Status',
+               'Boot With Pinned Cache',
+               'Alarm',
+               'Load Balance Mode',
+               'Abort CC on Error',
+               'Maintain PD Fail History',
+               'Restore Hot Spare on Insertion',
+               'Spin Down Unconfigured Drives',
+               'Coercion Mode',
+               'Enclosure Power Down',
+               'JBOD'
+            settings[key] = val
+          when 'Rebuild Rate',
+               'Performance Mode',
+               'Cache Flush Interval',
+               'SMART Mode',
+               'SMART Poll Interval',
+               'BGI Rate',
+               'Spin Up Drive Count',
+               'Spin Up Delay'
+            # Store numeric values as integers
+            settings[key] = val.to_i
+          end
+        end
+        
+        # Add sentinel for settings not found in output
+        default_settings = [
+          'Auto Rebuild', 'Copy Back', 'NCQ Status', 
+          'Boot With Pinned Cache', 'Alarm', 'JBOD',
+          'Load Balance Mode', 'Rebuild Rate', 
+          'Performance Mode', 'Cache Flush Interval',
+          'SMART Poll Interval'
+        ]
+        
+        default_settings.each do |setting_name|
+          settings[setting_name] ||= 'Un-supported'
+        end
+      end
+      
+      @controller_settings[controller_id] = settings
     end
   end
 
@@ -271,9 +358,10 @@ class Megaraid
         'fw_version'       => parameters.fetch('FW Version', nil),
         'bios_version'     => parameters.fetch('BIOS Version', nil),
 
-        'virtual_drives'   => vd,
-        'patrol_read'      => @pr_info[controller],
+        'virtual_drives'    => vd,
+        'patrol_read'       => @pr_info[controller],
         'consistency_check' => @cc_info[controller],
+        'controller_settings' => @controller_settings&.fetch(controller, {}),
       }
     end
 

@@ -92,6 +92,28 @@ class storcli::configure::controller {
         }
       }
 
+      if $controller_config['copyback'] =~ Boolean {
+        megaraid_controller_setting { "${controller_id}:copyback":
+          controller => $controller_id,
+          setting    => 'copyback',
+          value      => $controller_config['copyback'] ? {
+            true    => 'on',
+            default => 'off',
+          },
+        }
+      }
+
+      if $controller_config['jbod'] =~ Boolean {
+        megaraid_controller_setting { "${controller_id}:jbod":
+          controller => $controller_id,
+          setting    => 'jbod',
+          value      => $controller_config['jbod'] ? {
+            true    => 'on',
+            default => 'off',
+          },
+        }
+      }
+
       # Handle time synchronization (special case - not in the hash)
       if $storcli::sync_time_to_controllers {
         if $storcli::controller_use_utc {

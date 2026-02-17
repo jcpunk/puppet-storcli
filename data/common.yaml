@@ -20,6 +20,8 @@ storcli::controller_defaults:
   bootwithpinnedcache: false
   alarm: true
   smartpollinterval: 60
+  # copyback: true        # Auto copy back on hot spare rebuild
+  # jbod: false           # JBOD mode (use with caution)
   patrolread_mode: 'auto'
   patrolread_delay: 336
   patrolread_rate: 30
