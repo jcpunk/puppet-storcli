@@ -39,9 +39,9 @@ require 'timeout'
 
 # Main class for MegaRAID fact collection
 class Megaraid
-  MEGARAID_SAS_DRIVER_PATH = '/sys/bus/pci/drivers/megaraid_sas'
-  MPT3SAS_DRIVER_PATH = '/sys/bus/pci/drivers/mpt3sas'
-  STORCLI_TIMEOUT = 60
+  MEGARAID_SAS_DRIVER_PATH = '/sys/bus/pci/drivers/megaraid_sas' unless defined?(MEGARAID_SAS_DRIVER_PATH)
+  MPT3SAS_DRIVER_PATH = '/sys/bus/pci/drivers/mpt3sas' unless defined?(MPT3SAS_DRIVER_PATH)
+  STORCLI_TIMEOUT = 60 unless defined?(STORCLI_TIMEOUT)
 
   # Hardware presence detection
   def present?
