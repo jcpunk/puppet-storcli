@@ -282,6 +282,8 @@ describe :megaraid, type: :fact do
           expect(ctrl).to have_key('drive_groups_count')
           expect(ctrl).to have_key('physical_drive_count')
           expect(ctrl).to have_key('drive_groups')
+          expect(ctrl).to have_key('controller_settings')
+          expect(ctrl).to have_key('bbu_info')
           expect(ctrl).to have_key('patrol_read')
           expect(ctrl).to have_key('consistency_check')
 
@@ -306,6 +308,20 @@ describe :megaraid, type: :fact do
             expect(cc).to have_key('execution_delay')
           end
 
+          # Verify controller_settings structure
+          if ctrl['controller_settings']
+            settings = ctrl['controller_settings']
+            expect(settings).to be_a(Hash)
+            # Settings may have Un-supported as sentinel value
+          end
+
+          # Verify bbu_info structure
+          if ctrl['bbu_info']
+            bbu = ctrl['bbu_info']
+            expect(bbu).to be_a(Hash)
+            expect(bbu).to have_key('state')
+          end
+
           # Verify drive_groups structure
           dgs = ctrl['drive_groups']
           expect(dgs).to be_a(Hash)
@@ -315,18 +331,20 @@ describe :megaraid, type: :fact do
             expect(dg).to have_key('virtual_disks')
             expect(dg['virtual_disks']).to be_a(Hash)
 
-            # Verify each virtual disk has required fields
+            # Verify each virtual disk has required fields (new structure)
             dg['virtual_disks'].each_value do |vd_info|
-              expect(vd_info).to have_key('type')
-              expect(vd_info).to have_key('state')
-              expect(vd_info).to have_key('strip_size')
-              expect(vd_info).to have_key('size')
-              expect(vd_info).to have_key('write_cache')
-              expect(vd_info).to have_key('read_cache')
-              expect(vd_info).to have_key('io_policy')
-              expect(vd_info).to have_key('physical_drive_cache')
               expect(vd_info).to have_key('name')
-              expect(vd_info).to have_key('encryption')
+              expect(vd_info).to have_key('raid_level')
+              expect(vd_info).to have_key('size')
+              expect(vd_info).to have_key('state')
+              expect(vd_info).to have_key('properties')
+              
+              # Verify properties sub-hash
+              props = vd_info['properties']
+              expect(props).to be_a(Hash)
+              expect(props).to have_key('stripe_size')
+              expect(props).to have_key('span_depth')
+              expect(props).to have_key('number_of_drives_per_span')
             end
           end
         end
@@ -344,10 +362,13 @@ describe :megaraid, type: :fact do
           cc = ctrl['consistency_check']
           expect(cc.keys).not_to include('CC Operation Mode', 'CC Execution Delay', 'CC Next Starttime')
 
-          # Check virtual_disks within drive_groups use snake_case
+          # Check virtual_disks within drive_groups use new structure
           ctrl['drive_groups'].each_value do |dg|
             dg['virtual_disks'].each_value do |vd_info|
-              expect(vd_info.keys).not_to include('Type', 'State', 'Strip Size', 'Write Cache', 'Read Cache', 'IO Policy', 'Physical Drive Cache', 'Name', 'Encryption')
+              # Old keys should not exist
+              expect(vd_info.keys).not_to include('type', 'strip_size', 'write_cache', 'read_cache', 'io_policy', 'physical_drive_cache', 'encryption')
+              # New structure should have these
+              expect(vd_info.keys).to include('name', 'raid_level', 'size', 'state', 'properties')
             end
           end
         end

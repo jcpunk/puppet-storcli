@@ -96,6 +96,8 @@ class Megaraid
       controller_info
       pr_info
       cc_info
+      controller_settings_info
+      bbu_info
     end
   end
 
@@ -272,6 +274,143 @@ class Megaraid
     end
   end
 
+  # Get controller settings information from all available CLI tools
+  def controller_settings_info
+    @controller_settings_info = {}
+    return unless present?
+    return unless num_controllers.positive?
+    
+    tools = storcli_tools
+    return if tools.empty?
+
+    # Query each available CLI tool
+    tools.each do |tool|
+      raw = Facter::Util::Resolution.exec("#{tool} /call show all J nolog")
+      next unless raw && !raw.empty?
+
+      output = begin
+                 JSON.parse(raw)
+               rescue StandardError => e
+                 Facter.debug("Failed to parse controller settings JSON from #{tool}: #{e.message}")
+                 nil
+               end
+      next unless output.is_a?(Hash)
+
+      output.fetch('Controllers', []).each do |controller|
+        settings = {}
+        controller_properties = controller.dig('Response Data', 'Controller Properties') || {}
+
+        if controller_properties.empty?
+          # Set defaults with Un-supported sentinel for unsupported features
+          settings['Auto Rebuild'] = 'Un-supported'
+          settings['Copy Back'] = 'Un-supported'
+          settings['JBOD'] = 'Un-supported'
+          settings['NCQ Status'] = 'Un-supported'
+          settings['Boot With Pinned Cache'] = 'Un-supported'
+          settings['Alarm'] = 'Un-supported'
+          settings['Load Balance Mode'] = 'Un-supported'
+          settings['Rebuild Rate'] = 'Un-supported'
+          settings['Performance Mode'] = 'Un-supported'
+          settings['Cache Flush Interval'] = 'Un-supported'
+          settings['SMART Poll Interval'] = 'Un-supported'
+          settings['Maintain PD Fail History'] = 'Un-supported'
+          settings['Enclosure PD'] = 'Un-supported'
+        else
+          controller_properties.each do |attribute|
+            key = attribute['Ctrl_Prop']
+            val = attribute['Value']
+
+            case key
+            when 'Auto Rebuild'
+              settings['Auto Rebuild'] = val
+            when 'Copy Back'
+              settings['Copy Back'] = val
+            when 'JBOD'
+              settings['JBOD'] = val
+            when 'NCQ Status'
+              settings['NCQ Status'] = val
+            when 'Boot With Pinned Cache'
+              settings['Boot With Pinned Cache'] = val
+            when 'Alarm'
+              settings['Alarm'] = val
+            when 'Load Balance Mode'
+              settings['Load Balance Mode'] = val
+            when 'Rebuild Rate'
+              settings['Rebuild Rate'] = val.to_i
+            when 'Performance Mode'
+              settings['Performance Mode'] = val.to_i
+            when 'Cache Flush Interval'
+              settings['Cache Flush Interval'] = val.to_i
+            when 'SMART Poll Interval'
+              settings['SMART Poll Interval'] = val.to_i
+            when 'Maintain PD Fail History'
+              settings['Maintain PD Fail History'] = val
+            when 'Enclosure PD'
+              settings['Enclosure PD'] = val
+            end
+          end
+        end
+
+        id = controller.dig('Command Status', 'Controller')
+        @controller_settings_info[id] = settings if id
+      end
+    end
+  end
+
+  # Get BBU information from all available CLI tools
+  def bbu_info
+    @bbu_info = {}
+    return unless present?
+    return unless num_controllers.positive?
+    
+    tools = storcli_tools
+    return if tools.empty?
+
+    # Query each available CLI tool
+    tools.each do |tool|
+      raw = Facter::Util::Resolution.exec("#{tool} /call show bbu J nolog")
+      next unless raw && !raw.empty?
+
+      output = begin
+                 JSON.parse(raw)
+               rescue StandardError => e
+                 Facter.debug("Failed to parse BBU JSON from #{tool}: #{e.message}")
+                 nil
+               end
+      next unless output.is_a?(Hash)
+
+      output.fetch('Controllers', []).each do |controller|
+        bbu_data = {}
+        bbu_info_raw = controller.dig('Response Data', 'BBU_Info') || 
+                       controller.dig('Response Data', 'BBU Info') ||
+                       {}
+
+        if bbu_info_raw.empty?
+          # No BBU present
+          bbu_data['state'] = 'Not Present'
+          bbu_data['type'] = nil
+          bbu_data['replacement_needed'] = nil
+          bbu_data['learn_cycle_active'] = nil
+        else
+          # Parse BBU information
+          bbu_data['state'] = bbu_info_raw.fetch('State', 'Unknown')
+          bbu_data['type'] = bbu_info_raw.fetch('Model', nil) || bbu_info_raw.fetch('Type', 'BBU')
+          
+          # Determine if replacement is needed
+          replacement = bbu_info_raw.fetch('Battery Replacement required', 'No')
+          bbu_data['replacement_needed'] = (replacement == 'Yes')
+          
+          # Check if learn cycle is active
+          learn_mode = bbu_info_raw.fetch('Learn Cycle Requested', 'No')
+          bbu_data['learn_cycle_active'] = (learn_mode != 'No')
+        end
+
+        id = controller.dig('Command Status', 'Controller')
+        @bbu_info[id] = bbu_data if id
+      end
+    end
+  end
+
   # Number of controllers
   def num_controllers
     @controller_info.size
@@ -327,11 +466,13 @@ class Megaraid
           vd_json.fetch('Controllers', [])[0]
                  &.dig('Response Data', "VD#{vd_id} Properties") || {}
 
-        vd['type']       = item.fetch('TYPE', nil)
-        vd['state']      = item.fetch('State', nil)
-        vd['strip_size'] = vd_output.fetch('Strip Size', nil)
+        # Top-level VD information
+        vd['name']       = "/c#{controller}/v#{vd_id}"
+        vd['raid_level'] = item.fetch('TYPE', nil)
         vd['size']       = item.fetch('Size', nil)
+        vd['state']      = item.fetch('State', nil)
 
+        # Parse cache settings
         cache = item['Cache'].to_s.upcase
 
         write_cache =
@@ -345,22 +486,22 @@ class Megaraid
             'unknown'
           end
 
-        vd['write_cache'] = write_cache
-
+        read_cache = nil
         if cache.start_with?('R')
-          vd['read_cache'] = 'ra'
+          read_cache = 'ra'
         elsif cache.start_with?('NR')
-          vd['read_cache'] = 'nora'
+          read_cache = 'nora'
         end
 
+        io_policy = nil
         if cache.end_with?('D')
-          vd['io_policy'] = 'direct'
+          io_policy = 'direct'
         elsif cache.end_with?('C')
-          vd['io_policy'] = 'cached'
+          io_policy = 'cached'
         end
 
         pdc = vd_output.fetch('Disk Cache Policy', 'unknown')
-        vd['physical_drive_cache'] =
+        physical_drive_cache =
           case pdc
           when "Disk's Default" then 'default'
           when 'Enabled'        then 'on'
@@ -368,8 +509,28 @@ class Megaraid
           else pdc
           end
 
-        vd['name']       = item.fetch('Name', nil)
-        vd['encryption'] = vd_output.fetch('Encryption', nil)
+        # Determine write policy from cache settings
+        initial_write_cache = vd_output.fetch('Write Cache(initial setting)', 'Unknown')
+        current_write_policy = write_cache == 'wb' ? 'WriteBack' : (write_cache == 'wt' ? 'WriteThrough' : 'Unknown')
+
+        # Determine read policy
+        current_read_policy = read_cache == 'ra' ? 'ReadAhead' : 'ReadAheadNone'
+
+        # Check if this is a boot drive
+        is_boot_drive = vd_output.fetch('Is LD Ready for OS Requests', 'No')
+
+        # Properties sub-hash
+        vd['properties'] = {
+          'stripe_size'                => vd_output.fetch('Strip Size', nil),
+          'span_depth'                 => vd_output.fetch('Span Depth', nil),
+          'number_of_drives_per_span'  => vd_output.fetch('Number of Drives Per Span', nil),
+          'current_cache_policy'       => current_write_policy,
+          'current_write_policy'       => current_write_policy,
+          'current_read_policy'        => current_read_policy,
+          'is_vd_boot_drive'           => is_boot_drive,
+          'disk_cache_policy'          => physical_drive_cache,
+          'encryption'                 => vd_output.fetch('Encryption', nil),
+        }
       end
 
       ctrls[controller] = {
@@ -385,9 +546,11 @@ class Megaraid
         'drive_groups_count'    => parameters.fetch('Drive Groups', nil),
         'physical_drive_count'  => parameters.fetch('Physical Drives', nil),
 
-        'drive_groups'     => drive_groups,
-        'patrol_read'      => @pr_info[controller],
-        'consistency_check' => @cc_info[controller],
+        'drive_groups'          => drive_groups,
+        'controller_settings'   => @controller_settings_info[controller],
+        'bbu_info'              => @bbu_info[controller],
+        'patrol_read'           => @pr_info[controller],
+        'consistency_check'     => @cc_info[controller],
       }
       # Note: _storcli_tool and _storcli_tool_info are intentionally not included in output (internal use only)
     end
