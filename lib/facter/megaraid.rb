@@ -51,6 +51,12 @@ class Megaraid
     @storcli_tools
   end
 
+  # Return first available storcli tool for backward compatibility
+  def storcli
+    tools = storcli_tools
+    tools.empty? ? nil : tools.first
+  end
+
   # Get tool information (version, type) for a given tool path
   # This helps identify differences between storcli2 and storcli64
   def get_tool_info(tool)
@@ -392,6 +398,7 @@ class Megaraid
 
     {
       'present'               => present?,
+      'storcli'               => storcli,
       'storcli_tools'         => storcli_tools,
       'tool_info'             => tools_with_info,
       'number_of_controllers' => num_controllers,
@@ -413,6 +420,7 @@ Facter.add(:megaraid) do
     Facter.warn('megaraid fact collection timed out after 60 seconds')
     {
       'present' => false,
+      'storcli' => nil,
       'storcli_tools' => [],
       'tool_info' => [],
       'number_of_controllers' => 0,
@@ -423,6 +431,7 @@ Facter.add(:megaraid) do
     Facter.warn("megaraid fact collection failed: #{e.message}")
     {
       'present' => false,
+      'storcli' => nil,
       'storcli_tools' => [],
       'tool_info' => [],
       'number_of_controllers' => 0,
