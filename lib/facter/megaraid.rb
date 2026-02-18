@@ -129,10 +129,10 @@ class Megaraid
   end
 
   # Parses a storcli schedule time string ("MM/DD/YYYY, HH:MM:SS") into a
-  # human-readable form ("Monday at 14:30:00").
+  # standard format ("YYYY-MM-DD HH:MM:SS").
   # Falls back to the original string if parsing fails so data is never silently lost.
   def parse_schedule_time(val)
-    Time.strptime(val, '%m/%d/%Y, %H:%M:%S').strftime('%A at %H:%M:%S')
+    Time.strptime(val, '%m/%d/%Y, %H:%M:%S').strftime('%Y-%m-%d %H:%M:%S')
   rescue StandardError
     val
   end
@@ -237,7 +237,6 @@ class Megaraid
             'replacement_needed' => (bbu_raw.fetch('Battery Replacement required', 'No') == 'Yes'),
             'learn_cycle_active' => (bbu_raw.fetch('Learn Cycle Requested', 'No') != 'No'),
           }
-        end
     end
   end
 
