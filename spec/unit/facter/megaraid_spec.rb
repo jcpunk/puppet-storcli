@@ -279,9 +279,9 @@ describe :megaraid, type: :fact do
           expect(ctrl).to have_key('bios_version')
           expect(ctrl).to have_key('driver_name')
           expect(ctrl).to have_key('device_interface')
-          expect(ctrl).to have_key('drive_groups')
+          expect(ctrl).to have_key('drive_groups_count')
           expect(ctrl).to have_key('physical_drive_count')
-          expect(ctrl).to have_key('virtual_drives')
+          expect(ctrl).to have_key('drive_groups')
           expect(ctrl).to have_key('patrol_read')
           expect(ctrl).to have_key('consistency_check')
 
@@ -306,21 +306,28 @@ describe :megaraid, type: :fact do
             expect(cc).to have_key('execution_delay')
           end
 
-          # Verify virtual_drives structure
-          vd = ctrl['virtual_drives']
-          expect(vd).to be_a(Hash)
+          # Verify drive_groups structure
+          dgs = ctrl['drive_groups']
+          expect(dgs).to be_a(Hash)
 
-          vd.each_value do |vd_info|
-            expect(vd_info).to have_key('type')
-            expect(vd_info).to have_key('state')
-            expect(vd_info).to have_key('strip_size')
-            expect(vd_info).to have_key('size')
-            expect(vd_info).to have_key('write_cache')
-            expect(vd_info).to have_key('read_cache')
-            expect(vd_info).to have_key('io_policy')
-            expect(vd_info).to have_key('physical_drive_cache')
-            expect(vd_info).to have_key('name')
-            expect(vd_info).to have_key('encryption')
+          # Each drive group should have virtual_disks
+          dgs.each_value do |dg|
+            expect(dg).to have_key('virtual_disks')
+            expect(dg['virtual_disks']).to be_a(Hash)
+
+            # Verify each virtual disk has required fields
+            dg['virtual_disks'].each_value do |vd_info|
+              expect(vd_info).to have_key('type')
+              expect(vd_info).to have_key('state')
+              expect(vd_info).to have_key('strip_size')
+              expect(vd_info).to have_key('size')
+              expect(vd_info).to have_key('write_cache')
+              expect(vd_info).to have_key('read_cache')
+              expect(vd_info).to have_key('io_policy')
+              expect(vd_info).to have_key('physical_drive_cache')
+              expect(vd_info).to have_key('name')
+              expect(vd_info).to have_key('encryption')
+            end
           end
         end
       end
@@ -337,9 +344,11 @@ describe :megaraid, type: :fact do
           cc = ctrl['consistency_check']
           expect(cc.keys).not_to include('CC Operation Mode', 'CC Execution Delay', 'CC Next Starttime')
 
-          # Check virtual_drives use snake_case
-          ctrl['virtual_drives'].each_value do |vd_info|
-            expect(vd_info.keys).not_to include('Type', 'State', 'Strip Size', 'Write Cache', 'Read Cache', 'IO Policy', 'Physical Drive Cache', 'Name', 'Encryption')
+          # Check virtual_disks within drive_groups use snake_case
+          ctrl['drive_groups'].each_value do |dg|
+            dg['virtual_disks'].each_value do |vd_info|
+              expect(vd_info.keys).not_to include('Type', 'State', 'Strip Size', 'Write Cache', 'Read Cache', 'IO Policy', 'Physical Drive Cache', 'Name', 'Encryption')
+            end
           end
         end
       end
@@ -355,6 +364,31 @@ describe :megaraid, type: :fact do
           # Consistency check should not have monitoring fields
           cc = ctrl['consistency_check']
           expect(cc.keys).not_to include('CC Current State', 'CC Number of iterations', 'CC Number of VD completed', 'CC Excluded VDs')
+        end
+      end
+
+      it 'organizes virtual disks by drive group' do
+        controller_ids.each do |ctrl_id|
+          ctrl = fact.value['controllers'][ctrl_id]
+          dgs = ctrl['drive_groups']
+
+          # Verify drive groups structure
+          expect(dgs).to be_a(Hash)
+          
+          # Each drive group should have virtual_disks
+          dgs.each do |dg_id, dg_data|
+            expect(dg_data).to have_key('virtual_disks')
+            expect(dg_data['virtual_disks']).to be_a(Hash)
+            
+            # DG ID should be a string
+            expect(dg_id).to be_a(String)
+            
+            # Each VD should have an ID
+            dg_data['virtual_disks'].each do |vd_id, vd_data|
+              expect(vd_id).to be_a(String)
+              expect(vd_data).to be_a(Hash)
+            end
+          end
         end
       end
     end

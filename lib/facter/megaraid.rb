@@ -282,7 +282,7 @@ class Megaraid
     ctrls = {}
 
     @controller_info.each do |controller, parameters|
-      vd = {}
+      drive_groups = {}
 
       # Get the tool that found this controller
       tool = parameters.fetch('_storcli_tool', storcli_tools.first)
@@ -291,15 +291,25 @@ class Megaraid
       vd_list = parameters.fetch('VD LIST', [])
       vd_list.each do |item|
         # Support both 'DG/VD' (newer) and 'VD' (older) keys
-        vd_id = if item.key?('DG/VD')
-                  item['DG/VD'].split('/')[1]
-                elsif item.key?('VD')
-                  item['VD'].to_s
-                else
-                  next
-                end
+        if item.key?('DG/VD')
+          # Parse DG/VD format (e.g., "0/0" or "1/237")
+          dg_vd = item['DG/VD'].split('/')
+          dg_id = dg_vd[0]
+          vd_id = dg_vd[1]
+        elsif item.key?('VD')
+          # Legacy format: no DG concept, treat as DG 0
+          dg_id = '0'
+          vd_id = item['VD'].to_s
+        else
+          next
+        end
 
-        vd[vd_id] = {}
+        # Initialize drive group if not present
+        drive_groups[dg_id] ||= { 'virtual_disks' => {} }
+
+        # Initialize VD hash
+        drive_groups[dg_id]['virtual_disks'][vd_id] = {}
+        vd = drive_groups[dg_id]['virtual_disks'][vd_id]
 
         raw = Facter::Util::Resolution.exec(
           "#{tool} /c#{controller}/v#{vd_id} show all J nolog",
@@ -317,10 +327,10 @@ class Megaraid
           vd_json.fetch('Controllers', [])[0]
                  &.dig('Response Data', "VD#{vd_id} Properties") || {}
 
-        vd[vd_id]['type']       = item.fetch('TYPE', nil)
-        vd[vd_id]['state']      = item.fetch('State', nil)
-        vd[vd_id]['strip_size'] = vd_output.fetch('Strip Size', nil)
-        vd[vd_id]['size']       = item.fetch('Size', nil)
+        vd['type']       = item.fetch('TYPE', nil)
+        vd['state']      = item.fetch('State', nil)
+        vd['strip_size'] = vd_output.fetch('Strip Size', nil)
+        vd['size']       = item.fetch('Size', nil)
 
         cache = item['Cache'].to_s.upcase
 
@@ -335,22 +345,22 @@ class Megaraid
             'unknown'
           end
 
-        vd[vd_id]['write_cache'] = write_cache
+        vd['write_cache'] = write_cache
 
         if cache.start_with?('R')
-          vd[vd_id]['read_cache'] = 'ra'
+          vd['read_cache'] = 'ra'
         elsif cache.start_with?('NR')
-          vd[vd_id]['read_cache'] = 'nora'
+          vd['read_cache'] = 'nora'
         end
 
         if cache.end_with?('D')
-          vd[vd_id]['io_policy'] = 'direct'
+          vd['io_policy'] = 'direct'
         elsif cache.end_with?('C')
-          vd[vd_id]['io_policy'] = 'cached'
+          vd['io_policy'] = 'cached'
         end
 
         pdc = vd_output.fetch('Disk Cache Policy', 'unknown')
-        vd[vd_id]['physical_drive_cache'] =
+        vd['physical_drive_cache'] =
           case pdc
           when "Disk's Default" then 'default'
           when 'Enabled'        then 'on'
@@ -358,8 +368,8 @@ class Megaraid
           else pdc
           end
 
-        vd[vd_id]['name']       = item.fetch('Name', nil)
-        vd[vd_id]['encryption'] = vd_output.fetch('Encryption', nil)
+        vd['name']       = item.fetch('Name', nil)
+        vd['encryption'] = vd_output.fetch('Encryption', nil)
       end
 
       ctrls[controller] = {
@@ -372,10 +382,10 @@ class Megaraid
 
         'driver_name'           => parameters.fetch('Driver Name', nil),
         'device_interface'      => parameters.fetch('Device Interface', nil),
-        'drive_groups'          => parameters.fetch('Drive Groups', nil),
+        'drive_groups_count'    => parameters.fetch('Drive Groups', nil),
         'physical_drive_count'  => parameters.fetch('Physical Drives', nil),
 
-        'virtual_drives'   => vd,
+        'drive_groups'     => drive_groups,
         'patrol_read'      => @pr_info[controller],
         'consistency_check' => @cc_info[controller],
       }
