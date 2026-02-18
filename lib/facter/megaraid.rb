@@ -7,19 +7,22 @@
 #
 require 'json'
 require 'time'
+require 'timeout'
 
 # Main Megaraid class
 class Megaraid
   # Is a megaraid driver present?
   def present?
-    Dir.exist?('/sys/bus/pci/drivers/megaraid_sas') || Dir.exist?('/sys/bus/pci/drivers/mpt3sas')
+    Dir.exist?('/sys/bus/pci/drivers/megaraid_sas') ||
+      Dir.exist?('/sys/bus/pci/drivers/mpt3sas') ||
+      Dir.exist?('/sys/bus/pci/drivers/mpi3mr')
   end
 
-  # where's storcli application
-  def storcli
-    return @storcli if defined?(@storcli)
-    @storcli = nil
-    return unless present?
+  # Find all available storcli/perccli applications
+  def storcli_tools
+    return @storcli_tools if defined?(@storcli_tools)
+    @storcli_tools = []
+    return @storcli_tools unless present?
 
     dmi = Facter.value(:dmi)
     manufacturer = dmi.is_a?(Hash) ? dmi['manufacturer'] : nil
@@ -27,21 +30,64 @@ class Megaraid
 
     storcli_locations =
       if is_dell
-        ['perccli64', '/opt/MegaRAID/perccli/perccli64',
+        ['perccli2', '/opt/MegaRAID/perccli/perccli2',
+         'perccli64', '/opt/MegaRAID/perccli/perccli64',
          'perccli',   '/opt/MegaRAID/perccli/perccli']
       else
-        ['storcli64', '/opt/MegaRAID/storcli/storcli64',
+        ['storcli2', '/opt/MegaRAID/storcli/storcli2',
+         'storcli64', '/opt/MegaRAID/storcli/storcli64',
          'storcli',   '/opt/MegaRAID/storcli/storcli']
       end
 
+    # Find all available tools (a system might have both storcli and storcli2)
+    seen_paths = {}
     storcli_locations.each do |run|
       path = Facter::Util::Resolution.which(run)
       next unless path
-      @storcli = path
-      break
+      # Avoid duplicates (e.g., storcli and /usr/bin/storcli might be the same)
+      next if seen_paths[path]
+      seen_paths[path] = true
+      @storcli_tools << path
     end
 
-    @storcli
+    @storcli_tools
+  end
+
+  # Return first available storcli tool for backward compatibility
+  def storcli
+    tools = storcli_tools
+    tools.empty? ? nil : tools.first
+  end
+
+  # Get tool information (version, type) for a given tool path
+  # This helps identify differences between storcli2 and storcli64
+  def get_tool_info(tool)
+    return @tool_info[tool] if defined?(@tool_info) && @tool_info[tool]
+    
+    @tool_info ||= {}
+    
+    # Try to get version info - storcli2 and storcli64 should both support this
+    raw = Facter::Util::Resolution.exec("#{tool} show J nolog")
+    return @tool_info[tool] = {} unless raw && !raw.empty?
+
+    output = begin
+               JSON.parse(raw)
+             rescue StandardError
+               nil
+             end
+    return @tool_info[tool] = {} unless output.is_a?(Hash)
+
+    # Extract CLI version if available
+    cli_version = output.dig('Controllers', 0, 'Command Status', 'CLI Version')
+    tool_name = File.basename(tool)
+    
+    @tool_info[tool] = {
+      'name' => tool_name,
+      'path' => tool,
+      'version' => cli_version || 'Unknown'
+    }
+  rescue StandardError
+    @tool_info[tool] = {}
   end
 
   # Function to call all get methods
@@ -50,138 +96,281 @@ class Megaraid
       controller_info
       pr_info
       cc_info
+      controller_settings_info
+      bbu_info
     end
   end
 
-  # Get controller information
+  # Get controller information from all available CLI tools
   def controller_info
     @controller_info = {}
     return unless present?
-    return unless storcli
+    
+    tools = storcli_tools
+    return if tools.empty?
 
-    raw = Facter::Util::Resolution.exec("#{storcli} /call show J nolog")
-    return unless raw && !raw.empty?
+    # Query each available CLI tool and combine results
+    tools.each do |tool|
+      # Get tool info for better error reporting
+      tool_info = get_tool_info(tool)
+      
+      raw = Facter::Util::Resolution.exec("#{tool} /call show J nolog")
+      next unless raw && !raw.empty?
 
-    output = begin
-               JSON.parse(raw)
-             rescue
-               nil
-             end
-    return unless output.is_a?(Hash)
+      output = begin
+                 JSON.parse(raw)
+               rescue StandardError => e
+                 # Log parse error but continue with other tools
+                 Facter.debug("Failed to parse JSON from #{tool}: #{e.message}")
+                 nil
+               end
+      next unless output.is_a?(Hash)
 
-    output.fetch('Controllers', []).each do |controller|
-      next if controller.dig('Command Status', 'Status') == 'Failure'
-      id = controller.dig('Command Status', 'Controller')
-      next if id.nil?
+      # Check if the output structure is as expected
+      # This helps catch differences between storcli2 and storcli64
+      unless output.key?('Controllers')
+        Facter.debug("Unexpected output structure from #{tool}: missing 'Controllers' key")
+        next
+      end
 
-      @controller_info[id] = controller.fetch('Response Data', {})
+      output.fetch('Controllers', []).each do |controller|
+        next if controller.dig('Command Status', 'Status') == 'Failure'
+        id = controller.dig('Command Status', 'Controller')
+        next if id.nil?
+
+        # Store which tool found this controller
+        controller_data = controller.fetch('Response Data', {})
+        controller_data['_storcli_tool'] = tool
+        controller_data['_storcli_tool_info'] = tool_info
+        @controller_info[id] = controller_data
+      end
     end
   end
 
-  # Get patrol read information
+  # Get patrol read information from all available CLI tools
   def pr_info
     @pr_info = {}
     return unless present?
-    return unless storcli
     return unless num_controllers.positive?
+    
+    tools = storcli_tools
+    return if tools.empty?
 
-    raw = Facter::Util::Resolution.exec("#{storcli} /call show patrolread J nolog")
-    return unless raw && !raw.empty?
+    # Query each available CLI tool
+    tools.each do |tool|
+      raw = Facter::Util::Resolution.exec("#{tool} /call show patrolread J nolog")
+      next unless raw && !raw.empty?
 
-    output = begin
-               JSON.parse(raw)
-             rescue
-               nil
-             end
-    return unless output.is_a?(Hash)
+      output = begin
+                 JSON.parse(raw)
+               rescue StandardError => e
+                 Facter.debug("Failed to parse patrol read JSON from #{tool}: #{e.message}")
+                 nil
+               end
+      next unless output.is_a?(Hash)
 
-    output.fetch('Controllers', []).each do |controller|
-      pr_properties = {}
-      controller_properties = controller.dig('Response Data', 'Controller Properties') || {}
-
-      if controller_properties.empty?
-        pr_properties['PR Mode'] = 'Un-supported'
-        pr_properties['PR Next Start time'] = 'Un-supported'
-      else
-        controller_properties.each do |attribute|
-          key = attribute['Ctrl_Prop']
-          val = attribute['Value']
-
-          case key
-          when 'PR Execution Delay',
-                 'PR iterations completed',
-                 'PR MaxConcurrentPd'
-            pr_properties[key] = val.to_i
-          when 'PR on SSD'
-            pr_properties[key] = (val != 'Disabled')
-          when 'PR Next Start time'
-            begin
-              t = Time.strptime(val, '%m/%d/%Y, %H:%M:%S')
-              pr_properties[key] = t.strftime('%A at %H:%M:%S')
-            rescue
-              pr_properties[key] = val
-            end
-          else
-            pr_properties[key] = val
-          end
-        end
+      # Validate expected structure
+      unless output.key?('Controllers')
+        Facter.debug("Unexpected patrol read output from #{tool}: missing 'Controllers' key")
+        next
       end
 
-      id = controller.dig('Command Status', 'Controller')
-      @pr_info[id] = pr_properties if id
+      output.fetch('Controllers', []).each do |controller|
+        pr_properties = {}
+        controller_properties = controller.dig('Response Data', 'Controller Properties') || {}
+
+        if controller_properties.empty?
+          pr_properties['mode'] = 'Un-supported'
+          pr_properties['next_start_time'] = 'Un-supported'
+        else
+          controller_properties.each do |attribute|
+            key = attribute['Ctrl_Prop']
+            val = attribute['Value']
+
+            case key
+            when 'PR Mode'
+              pr_properties['mode'] = val
+            when 'PR Execution Delay'
+              pr_properties['execution_delay'] = val.to_i
+            when 'PR on SSD'
+              pr_properties['on_ssd'] = (val != 'Disabled')
+            when 'PR Next Start time'
+              begin
+                t = Time.strptime(val, '%m/%d/%Y, %H:%M:%S')
+                pr_properties['next_start_time'] = t.strftime('%A at %H:%M:%S')
+              rescue StandardError
+                pr_properties['next_start_time'] = val
+              end
+            end
+          end
+        end
+
+        id = controller.dig('Command Status', 'Controller')
+        @pr_info[id] = pr_properties if id
+      end
     end
   end
 
-  # Get consistency check information
+  # Get consistency check information from all available CLI tools
   def cc_info
     @cc_info = {}
     return unless present?
-    return unless storcli
     return unless num_controllers.positive?
+    
+    tools = storcli_tools
+    return if tools.empty?
 
-    raw = Facter::Util::Resolution.exec("#{storcli} /call show cc J nolog")
-    return unless raw && !raw.empty?
+    # Query each available CLI tool
+    tools.each do |tool|
+      raw = Facter::Util::Resolution.exec("#{tool} /call show cc J nolog")
+      next unless raw && !raw.empty?
 
-    output = begin
-               JSON.parse(raw)
-             rescue
-               nil
-             end
-    return unless output.is_a?(Hash)
+      output = begin
+                 JSON.parse(raw)
+               rescue StandardError => e
+                 Facter.debug("Failed to parse consistency check JSON from #{tool}: #{e.message}")
+                 nil
+               end
+      next unless output.is_a?(Hash)
 
-    output.fetch('Controllers', []).each do |controller|
-      cc_properties = {}
-      controller_properties =
-        controller.dig('Response Data', 'Controller Properties') || {}
+      # Validate expected structure
+      unless output.key?('Controllers')
+        Facter.debug("Unexpected consistency check output from #{tool}: missing 'Controllers' key")
+        next
+      end
 
-      if controller_properties.empty?
-        cc_properties['CC Operation Mode'] = 'Un-supported'
-        cc_properties['CC Next Starttime'] = 'Un-supported'
-      else
+      output.fetch('Controllers', []).each do |controller|
+        cc_properties = {}
+        controller_properties =
+          controller.dig('Response Data', 'Controller Properties') || {}
+
+        if controller_properties.empty?
+          cc_properties['operation_mode'] = 'Un-supported'
+          cc_properties['next_start_time'] = 'Un-supported'
+        else
+          controller_properties.each do |attribute|
+            key = attribute['Ctrl_Prop']
+            val = attribute['Value']
+
+            case key
+            when 'CC Operation Mode'
+              cc_properties['operation_mode'] = val
+            when 'CC Execution Delay'
+              cc_properties['execution_delay'] = val.to_i
+            when 'CC Next Starttime'
+              begin
+                t = Time.strptime(val, '%m/%d/%Y, %H:%M:%S')
+                cc_properties['next_start_time'] = t.strftime('%A at %H:%M:%S')
+              rescue StandardError
+                cc_properties['next_start_time'] = val
+              end
+            end
+          end
+        end
+
+        id = controller.dig('Command Status', 'Controller')
+        @cc_info[id] = cc_properties if id
+      end
+    end
+  end
+
+  # Get controller settings information from all available CLI tools
+  def controller_settings_info
+    @controller_settings_info = {}
+    return unless present?
+    return unless num_controllers.positive?
+    
+    tools = storcli_tools
+    return if tools.empty?
+
+    # Query each available CLI tool
+    tools.each do |tool|
+      raw = Facter::Util::Resolution.exec("#{tool} /call show all J nolog")
+      next unless raw && !raw.empty?
+
+      output = begin
+                 JSON.parse(raw)
+               rescue StandardError => e
+                 Facter.debug("Failed to parse controller settings JSON from #{tool}: #{e.message}")
+                 nil
+               end
+      next unless output.is_a?(Hash)
+
+      output.fetch('Controllers', []).each do |controller|
+        settings = {}
+        controller_properties = controller.dig('Response Data', 'Controller Properties') || []
+
+        # Loop through all controller properties and set them directly
+        # Consumers can assume any missing key is 'Un-supported'
         controller_properties.each do |attribute|
           key = attribute['Ctrl_Prop']
           val = attribute['Value']
 
-          case key
-          when 'CC Execution Delay',
-                 'CC Number of iterations',
-                 'CC Number of VD completed'
-            cc_properties[key] = val.to_i
-          when 'CC Next Starttime'
-            begin
-              t = Time.strptime(val, '%m/%d/%Y, %H:%M:%S')
-              cc_properties[key] = t.strftime('%A at %H:%M:%S')
-            rescue
-              cc_properties[key] = val
-            end
+          # Convert numeric values to integers
+          if ['Rebuild Rate', 'Performance Mode', 'Cache Flush Interval', 'SMART Poll Interval'].include?(key)
+            settings[key] = val.to_i
           else
-            cc_properties[key] = val
+            settings[key] = val
           end
         end
-      end
 
-      id = controller.dig('Command Status', 'Controller')
-      @cc_info[id] = cc_properties if id
+        id = controller.dig('Command Status', 'Controller')
+        @controller_settings_info[id] = settings if id
+      end
+    end
+  end
+
+  # Get BBU information from all available CLI tools
+  def bbu_info
+    @bbu_info = {}
+    return unless present?
+    return unless num_controllers.positive?
+    
+    tools = storcli_tools
+    return if tools.empty?
+
+    # Query each available CLI tool
+    tools.each do |tool|
+      raw = Facter::Util::Resolution.exec("#{tool} /call show bbu J nolog")
+      next unless raw && !raw.empty?
+
+      output = begin
+                 JSON.parse(raw)
+               rescue StandardError => e
+                 Facter.debug("Failed to parse BBU JSON from #{tool}: #{e.message}")
+                 nil
+               end
+      next unless output.is_a?(Hash)
+
+      output.fetch('Controllers', []).each do |controller|
+        bbu_data = {}
+        bbu_info_raw = controller.dig('Response Data', 'BBU_Info') || 
+                       controller.dig('Response Data', 'BBU Info') ||
+                       {}
+
+        if bbu_info_raw.empty?
+          # No BBU present
+          bbu_data['state'] = 'Not Present'
+          bbu_data['type'] = nil
+          bbu_data['replacement_needed'] = nil
+          bbu_data['learn_cycle_active'] = nil
+        else
+          # Parse BBU information
+          bbu_data['state'] = bbu_info_raw.fetch('State', 'Unknown')
+          bbu_data['type'] = bbu_info_raw.fetch('Model', nil) || bbu_info_raw.fetch('Type', 'BBU')
+          
+          # Determine if replacement is needed
+          replacement = bbu_info_raw.fetch('Battery Replacement required', 'No')
+          bbu_data['replacement_needed'] = (replacement == 'Yes')
+          
+          # Check if learn cycle is active
+          learn_mode = bbu_info_raw.fetch('Learn Cycle Requested', 'No')
+          bbu_data['learn_cycle_active'] = (learn_mode != 'No')
+        end
+
+        id = controller.dig('Command Status', 'Controller')
+        @bbu_info[id] = bbu_data if id
+      end
     end
   end
 
@@ -195,22 +384,43 @@ class Megaraid
     ctrls = {}
 
     @controller_info.each do |controller, parameters|
-      vd = {}
+      drive_groups = {}
 
-      parameters.fetch('VD LIST', []).each do |item|
-        next unless item.key?('DG/VD')
+      # Get the tool that found this controller
+      tool = parameters.fetch('_storcli_tool', storcli_tools.first)
 
-        vd_id = item['DG/VD'].split('/')[1]
-        vd[vd_id] = {}
+      # Handle VD LIST - may be null for JBOD-only controllers
+      vd_list = parameters.fetch('VD LIST', [])
+      vd_list.each do |item|
+        # Support both 'DG/VD' (newer) and 'VD' (older) keys
+        if item.key?('DG/VD')
+          # Parse DG/VD format (e.g., "0/0" or "1/237")
+          dg_vd = item['DG/VD'].split('/')
+          dg_id = dg_vd[0]
+          vd_id = dg_vd[1]
+        elsif item.key?('VD')
+          # Legacy format: no DG concept, treat as DG 0
+          dg_id = '0'
+          vd_id = item['VD'].to_s
+        else
+          next
+        end
+
+        # Initialize drive group if not present
+        drive_groups[dg_id] ||= { 'virtual_disks' => {} }
+
+        # Initialize VD hash
+        drive_groups[dg_id]['virtual_disks'][vd_id] = {}
+        vd = drive_groups[dg_id]['virtual_disks'][vd_id]
 
         raw = Facter::Util::Resolution.exec(
-          "#{storcli} /c#{controller}/v#{vd_id} show all J nolog",
+          "#{tool} /c#{controller}/v#{vd_id} show all J nolog",
         )
         next unless raw && !raw.empty?
 
         vd_json = begin
                     JSON.parse(raw)
-                  rescue
+                  rescue StandardError
                     nil
                   end
         next unless vd_json
@@ -219,10 +429,13 @@ class Megaraid
           vd_json.fetch('Controllers', [])[0]
                  &.dig('Response Data', "VD#{vd_id} Properties") || {}
 
-        vd[vd_id]['Type']       = item.fetch('TYPE', nil)
-        vd[vd_id]['State']      = item.fetch('State', nil)
-        vd[vd_id]['Strip Size'] = vd_output.fetch('Strip Size', nil)
+        # Top-level VD information
+        vd['name']       = "/c#{controller}/v#{vd_id}"
+        vd['raid_level'] = item.fetch('TYPE', nil)
+        vd['size']       = item.fetch('Size', nil)
+        vd['state']      = item.fetch('State', nil)
 
+        # Parse cache settings
         cache = item['Cache'].to_s.upcase
 
         write_cache =
@@ -236,22 +449,22 @@ class Megaraid
             'unknown'
           end
 
-        vd[vd_id]['Write Cache'] = write_cache
-
+        read_cache = nil
         if cache.start_with?('R')
-          vd[vd_id]['Read Cache'] = 'ra'
+          read_cache = 'ra'
         elsif cache.start_with?('NR')
-          vd[vd_id]['Read Cache'] = 'nora'
+          read_cache = 'nora'
         end
 
+        io_policy = nil
         if cache.end_with?('D')
-          vd[vd_id]['IO Policy'] = 'direct'
+          io_policy = 'direct'
         elsif cache.end_with?('C')
-          vd[vd_id]['IO Policy'] = 'cached'
+          io_policy = 'cached'
         end
 
         pdc = vd_output.fetch('Disk Cache Policy', 'unknown')
-        vd[vd_id]['Physical Drive Cache'] =
+        physical_drive_cache =
           case pdc
           when "Disk's Default" then 'default'
           when 'Enabled'        then 'on'
@@ -259,8 +472,36 @@ class Megaraid
           else pdc
           end
 
-        vd[vd_id]['Name']       = item.fetch('Name', nil)
-        vd[vd_id]['Encryption'] = vd_output.fetch('Encryption', nil)
+        # Determine write policy from cache settings
+        initial_write_cache = vd_output.fetch('Write Cache(initial setting)', 'Unknown')
+        current_write_policy = write_cache == 'wb' ? 'WriteBack' : (write_cache == 'wt' ? 'WriteThrough' : 'Unknown')
+
+        # Determine read policy
+        current_read_policy = read_cache == 'ra' ? 'ReadAhead' : 'ReadAheadNone'
+
+        # Check if this is a boot drive
+        is_boot_drive = vd_output.fetch('Is LD Ready for OS Requests', 'No')
+
+        # Configuration-relevant properties
+        exposed_to_os = vd_output.fetch('Exposed to OS', nil)
+        unmap_enabled = vd_output.fetch('Unmap Enabled', nil)
+        data_protection = vd_output.fetch('Data Protection', nil)
+
+        # Properties sub-hash
+        vd['properties'] = {
+          'stripe_size'                => vd_output.fetch('Strip Size', nil),
+          'span_depth'                 => vd_output.fetch('Span Depth', nil),
+          'number_of_drives_per_span'  => vd_output.fetch('Number of Drives Per Span', nil),
+          'current_cache_policy'       => current_write_policy,
+          'current_write_policy'       => current_write_policy,
+          'current_read_policy'        => current_read_policy,
+          'is_vd_boot_drive'           => is_boot_drive,
+          'disk_cache_policy'          => physical_drive_cache,
+          'encryption'                 => vd_output.fetch('Encryption', nil),
+          'exposed_to_os'              => exposed_to_os,
+          'unmap_enabled'              => unmap_enabled,
+          'data_protection'            => data_protection,
+        }
       end
 
       ctrls[controller] = {
@@ -271,9 +512,18 @@ class Megaraid
         'fw_version'       => parameters.fetch('FW Version', nil),
         'bios_version'     => parameters.fetch('BIOS Version', nil),
 
-        'virtual_drives'   => vd,
-        'patrol_read'      => @pr_info[controller],
-        'consistency_check' => @cc_info[controller],
+        'driver_name'           => parameters.fetch('Driver Name', nil),
+        'device_interface'      => parameters.fetch('Device Interface', nil),
+        'drive_groups_count'    => parameters.fetch('Drive Groups', nil),
+        'physical_drive_count'  => parameters.fetch('Physical Drives', nil),
+
+        'storcli_tool'          => parameters.fetch('_storcli_tool', nil),
+
+        'drive_groups'          => drive_groups,
+        'controller_settings'   => @controller_settings_info[controller],
+        'bbu_info'              => @bbu_info[controller],
+        'patrol_read'           => @pr_info[controller],
+        'consistency_check'     => @cc_info[controller],
       }
     end
 
@@ -281,12 +531,23 @@ class Megaraid
   end
 
   def all_facts
-    storcli
     all_info
 
+    # Collect tool information for debugging/visibility
+    tools_with_info = storcli_tools.map do |tool|
+      info = get_tool_info(tool)
+      {
+        'path' => tool,
+        'name' => info['name'] || File.basename(tool),
+        'version' => info['version'] || 'Unknown'
+      }
+    end
+
     {
-      'present?'              => present?,
+      'present'               => present?,
       'storcli'               => storcli,
+      'storcli_tools'         => storcli_tools,
+      'tool_info'             => tools_with_info,
       'number_of_controllers' => num_controllers,
       'controllers'           => controllers_info,
     }
@@ -297,6 +558,32 @@ Facter.add(:megaraid) do
   confine kernel: 'Linux'
 
   setcode do
-    Megaraid.new.all_facts
+    # Timeout to prevent fact from hanging indefinitely on slow/hung storcli commands
+    # This protects Puppet runs from blocking on hardware issues
+    Timeout.timeout(60) do
+      Megaraid.new.all_facts
+    end
+  rescue Timeout::Error
+    Facter.warn('megaraid fact collection timed out after 60 seconds')
+    {
+      'present' => false,
+      'storcli' => nil,
+      'storcli_tools' => [],
+      'tool_info' => [],
+      'number_of_controllers' => 0,
+      'controllers' => {},
+      'error' => 'Fact collection timed out'
+    }
+  rescue StandardError => e
+    Facter.warn("megaraid fact collection failed: #{e.message}")
+    {
+      'present' => false,
+      'storcli' => nil,
+      'storcli_tools' => [],
+      'tool_info' => [],
+      'number_of_controllers' => 0,
+      'controllers' => {},
+      'error' => e.message
+    }
   end
 end

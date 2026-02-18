@@ -1,5 +1,6 @@
 require 'fileutils'
 
-FileUtils.mkdir_p('/etc/facter/facts.d') || true
-FileUtils.mkdir_p('/etc/puppetlabs/facter/facts.d') || true
-FileUtils.mkdir_p('/opt/puppetlabs/facter/facts.d') || true
+# Skip directory creation in test environment
+# FileUtils.mkdir_p('/etc/facter/facts.d') || true
+# FileUtils.mkdir_p('/etc/puppetlabs/facter/facts.d') || true
+# FileUtils.mkdir_p('/opt/puppetlabs/facter/facts.d') || true
