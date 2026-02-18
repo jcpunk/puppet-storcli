@@ -26,6 +26,7 @@ describe :megaraid, type: :fact do
     it do
       expect(fact.value['present']).to eq(false)
       expect(fact.value['storcli_tools']).to eq([])
+      expect(fact.value['tool_info']).to eq([])
       expect(fact.value['number_of_controllers']).to eq(0)
       expect(fact.value['controllers']).to eq({})
     end
@@ -53,6 +54,7 @@ describe :megaraid, type: :fact do
     it do
       expect(fact.value['present']).to eq(true)
       expect(fact.value['storcli_tools']).to eq([])
+      expect(fact.value['tool_info']).to eq([])
       expect(fact.value['number_of_controllers']).to eq(0)
       expect(fact.value['controllers']).to eq({})
     end
@@ -75,12 +77,16 @@ describe :megaraid, type: :fact do
       allow(Facter::Util::Resolution).to receive(:which).with('storcli').and_return(nil)
       allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli').and_return(nil)
 
+      # Mock tool info call
+      allow(Facter::Util::Resolution).to receive(:exec).with('/example/path show J nolog').and_return(File.read('spec/fixtures/storcli_call_show_fail.json'))
       allow(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show J nolog').and_return(File.read('spec/fixtures/storcli_call_show_fail.json'))
     end
 
     it do
       expect(fact.value['present']).to eq(true)
       expect(fact.value['storcli_tools']).to eq(['/example/path'])
+      expect(fact.value['tool_info']).to be_a(Array)
+      expect(fact.value['tool_info'].length).to eq(1)
       expect(fact.value['number_of_controllers']).to eq(0)
       expect(fact.value['controllers'].count).to eq(0)
     end
@@ -139,6 +145,7 @@ describe :megaraid, type: :fact do
         end
 
         # Mock the main storcli calls
+        allow(Facter::Util::Resolution).to receive(:exec).with('/example/path show J nolog').and_return(File.read("#{fixture_path}/storcli_call_show.json"))
         allow(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show J nolog').and_return(File.read("#{fixture_path}/storcli_call_show.json"))
         allow(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show patrolread J nolog').and_return(File.read("#{fixture_path}/storcli_call_show_patrolread.json"))
         allow(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show cc J nolog').and_return(File.read("#{fixture_path}/storcli_call_show_cc.json"))
@@ -172,6 +179,7 @@ describe :megaraid, type: :fact do
       it 'has correct top-level keys' do
         expect(fact.value['present']).to eq(true)
         expect(fact.value['storcli_tools']).to eq(['/example/path'])
+        expect(fact.value['tool_info']).to be_a(Array)
         expect(fact.value['number_of_controllers']).to eq(controller_ids.length)
         expect(fact.value['controllers']).to be_a(Hash)
       end

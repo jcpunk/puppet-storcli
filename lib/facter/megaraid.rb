@@ -50,6 +50,37 @@ class Megaraid
     @storcli_tools
   end
 
+  # Get tool information (version, type) for a given tool path
+  # This helps identify differences between storcli2 and storcli64
+  def get_tool_info(tool)
+    return @tool_info[tool] if defined?(@tool_info) && @tool_info[tool]
+    
+    @tool_info ||= {}
+    
+    # Try to get version info - storcli2 and storcli64 should both support this
+    raw = Facter::Util::Resolution.exec("#{tool} show J nolog")
+    return @tool_info[tool] = {} unless raw && !raw.empty?
+
+    output = begin
+               JSON.parse(raw)
+             rescue StandardError
+               nil
+             end
+    return @tool_info[tool] = {} unless output.is_a?(Hash)
+
+    # Extract CLI version if available
+    cli_version = output.dig('Controllers', 0, 'Command Status', 'CLI Version')
+    tool_name = File.basename(tool)
+    
+    @tool_info[tool] = {
+      'name' => tool_name,
+      'path' => tool,
+      'version' => cli_version || 'Unknown'
+    }
+  rescue StandardError
+    @tool_info[tool] = {}
+  end
+
   # Function to call all get methods
   def all_info
     Dir.chdir('/tmp') do
@@ -69,15 +100,27 @@ class Megaraid
 
     # Query each available CLI tool and combine results
     tools.each do |tool|
+      # Get tool info for better error reporting
+      tool_info = get_tool_info(tool)
+      
       raw = Facter::Util::Resolution.exec("#{tool} /call show J nolog")
       next unless raw && !raw.empty?
 
       output = begin
                  JSON.parse(raw)
-               rescue StandardError
+               rescue StandardError => e
+                 # Log parse error but continue with other tools
+                 Facter.debug("Failed to parse JSON from #{tool}: #{e.message}")
                  nil
                end
       next unless output.is_a?(Hash)
+
+      # Check if the output structure is as expected
+      # This helps catch differences between storcli2 and storcli64
+      unless output.key?('Controllers')
+        Facter.debug("Unexpected output structure from #{tool}: missing 'Controllers' key")
+        next
+      end
 
       output.fetch('Controllers', []).each do |controller|
         next if controller.dig('Command Status', 'Status') == 'Failure'
@@ -87,6 +130,7 @@ class Megaraid
         # Store which tool found this controller
         controller_data = controller.fetch('Response Data', {})
         controller_data['_storcli_tool'] = tool
+        controller_data['_storcli_tool_info'] = tool_info
         @controller_info[id] = controller_data
       end
     end
@@ -108,10 +152,17 @@ class Megaraid
 
       output = begin
                  JSON.parse(raw)
-               rescue StandardError
+               rescue StandardError => e
+                 Facter.debug("Failed to parse patrol read JSON from #{tool}: #{e.message}")
                  nil
                end
       next unless output.is_a?(Hash)
+
+      # Validate expected structure
+      unless output.key?('Controllers')
+        Facter.debug("Unexpected patrol read output from #{tool}: missing 'Controllers' key")
+        next
+      end
 
       output.fetch('Controllers', []).each do |controller|
         pr_properties = {}
@@ -165,10 +216,17 @@ class Megaraid
 
       output = begin
                  JSON.parse(raw)
-               rescue StandardError
+               rescue StandardError => e
+                 Facter.debug("Failed to parse consistency check JSON from #{tool}: #{e.message}")
                  nil
                end
       next unless output.is_a?(Hash)
+
+      # Validate expected structure
+      unless output.key?('Controllers')
+        Facter.debug("Unexpected consistency check output from #{tool}: missing 'Controllers' key")
+        next
+      end
 
       output.fetch('Controllers', []).each do |controller|
         cc_properties = {}
@@ -312,7 +370,7 @@ class Megaraid
         'patrol_read'      => @pr_info[controller],
         'consistency_check' => @cc_info[controller],
       }
-      # Note: _storcli_tool is intentionally not included in output (internal use only)
+      # Note: _storcli_tool and _storcli_tool_info are intentionally not included in output (internal use only)
     end
 
     ctrls
@@ -321,9 +379,20 @@ class Megaraid
   def all_facts
     all_info
 
+    # Collect tool information for debugging/visibility
+    tools_with_info = storcli_tools.map do |tool|
+      info = get_tool_info(tool)
+      {
+        'path' => tool,
+        'name' => info['name'] || File.basename(tool),
+        'version' => info['version'] || 'Unknown'
+      }
+    end
+
     {
       'present'               => present?,
       'storcli_tools'         => storcli_tools,
+      'tool_info'             => tools_with_info,
       'number_of_controllers' => num_controllers,
       'controllers'           => controllers_info,
     }
