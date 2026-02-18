@@ -2,12 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## Release 2.0.0
+
+**Features**
+* New storcli fact
+
+**Breaking Changes**
+* The megaraid fact has been removed
+
 ## Release 1.2.0
 
 **Features**
-Caching of storcli/percli path in fact
-More explict about `nil` values in fact
-Note RHEL10 compat
+* Caching of storcli/percli path in fact
+* More explict about `nil` values in fact
+* Note RHEL10 compat
 
 **Bugfixes**
 Better support for cards with limited features

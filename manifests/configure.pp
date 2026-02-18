@@ -117,10 +117,10 @@ class storcli::configure (
 ) inherits storcli {
   # lint:ignore:check_unsafe_interpolations lint:ignore:140chars
   if $configure_settings {
-    if $facts['megaraid']['storcli'] {
-      keys($facts['megaraid']['controllers']).each |$x| {
+    if $facts['storcli'] and $facts['storcli']['present'] {
+      $facts['storcli']['controllers'].each |$x, $ctrl| {
         $c = "/c${x}"
-        $storcli = $facts['megaraid']['storcli']
+        $storcli = $ctrl['storcli_tool']
 
         if $controller_manage_rebuild {
           if $controller_autorebuild {
