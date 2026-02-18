@@ -298,56 +298,19 @@ class Megaraid
 
       output.fetch('Controllers', []).each do |controller|
         settings = {}
-        controller_properties = controller.dig('Response Data', 'Controller Properties') || {}
+        controller_properties = controller.dig('Response Data', 'Controller Properties') || []
 
-        if controller_properties.empty?
-          # Set defaults with Un-supported sentinel for unsupported features
-          settings['Auto Rebuild'] = 'Un-supported'
-          settings['Copy Back'] = 'Un-supported'
-          settings['JBOD'] = 'Un-supported'
-          settings['NCQ Status'] = 'Un-supported'
-          settings['Boot With Pinned Cache'] = 'Un-supported'
-          settings['Alarm'] = 'Un-supported'
-          settings['Load Balance Mode'] = 'Un-supported'
-          settings['Rebuild Rate'] = 'Un-supported'
-          settings['Performance Mode'] = 'Un-supported'
-          settings['Cache Flush Interval'] = 'Un-supported'
-          settings['SMART Poll Interval'] = 'Un-supported'
-          settings['Maintain PD Fail History'] = 'Un-supported'
-          settings['Enclosure PD'] = 'Un-supported'
-        else
-          controller_properties.each do |attribute|
-            key = attribute['Ctrl_Prop']
-            val = attribute['Value']
+        # Loop through all controller properties and set them directly
+        # Consumers can assume any missing key is 'Un-supported'
+        controller_properties.each do |attribute|
+          key = attribute['Ctrl_Prop']
+          val = attribute['Value']
 
-            case key
-            when 'Auto Rebuild'
-              settings['Auto Rebuild'] = val
-            when 'Copy Back'
-              settings['Copy Back'] = val
-            when 'JBOD'
-              settings['JBOD'] = val
-            when 'NCQ Status'
-              settings['NCQ Status'] = val
-            when 'Boot With Pinned Cache'
-              settings['Boot With Pinned Cache'] = val
-            when 'Alarm'
-              settings['Alarm'] = val
-            when 'Load Balance Mode'
-              settings['Load Balance Mode'] = val
-            when 'Rebuild Rate'
-              settings['Rebuild Rate'] = val.to_i
-            when 'Performance Mode'
-              settings['Performance Mode'] = val.to_i
-            when 'Cache Flush Interval'
-              settings['Cache Flush Interval'] = val.to_i
-            when 'SMART Poll Interval'
-              settings['SMART Poll Interval'] = val.to_i
-            when 'Maintain PD Fail History'
-              settings['Maintain PD Fail History'] = val
-            when 'Enclosure PD'
-              settings['Enclosure PD'] = val
-            end
+          # Convert numeric values to integers
+          if ['Rebuild Rate', 'Performance Mode', 'Cache Flush Interval', 'SMART Poll Interval'].include?(key)
+            settings[key] = val.to_i
+          else
+            settings[key] = val
           end
         end
 
