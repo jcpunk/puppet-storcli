@@ -478,19 +478,22 @@ describe :megaraid, type: :fact do
                     end
                     
                     # Verify write and read policies are derived from Cache string
-                    # Cache format is like "RWBD", "NRWTD", "RFWBC", etc.
-                    # Write: R=ReadAhead/NR=NoReadAhead, W=WriteBack/WT=WriteThrough
-                    # Read/IO: D=Direct, C=Cached
+                    # Cache format is like "RWBD", "NRWTD", "RFWBC", "RAWBD", etc.
+                    # Write: AWB=AlwaysWriteBack, WB=WriteBack, WT=WriteThrough
+                    # Read: R=ReadAhead, NR=ReadAheadNone (NR must be checked before R)
+                    # IO: D=Direct, C=Cached
                     cache_str = vd_item['Cache']
                     if cache_str
-                      # Validate write policy
-                      if cache_str.include?('WB') || cache_str.include?('AWB')
+                      # Validate write policy - AWB must be checked before WB
+                      if cache_str.include?('AWB')
+                        expect(props['current_write_policy']).to eq('AlwaysWriteBack')
+                      elsif cache_str.include?('WB')
                         expect(props['current_write_policy']).to eq('WriteBack')
                       elsif cache_str.include?('WT')
                         expect(props['current_write_policy']).to eq('WriteThrough')
                       end
                       
-                      # Validate read policy
+                      # Validate read policy - NR must be checked before R
                       if cache_str.start_with?('NR')
                         expect(props['current_read_policy']).to eq('ReadAheadNone')
                       elsif cache_str.start_with?('R')
