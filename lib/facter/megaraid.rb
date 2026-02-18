@@ -482,6 +482,11 @@ class Megaraid
         # Check if this is a boot drive
         is_boot_drive = vd_output.fetch('Is LD Ready for OS Requests', 'No')
 
+        # Configuration-relevant properties
+        exposed_to_os = vd_output.fetch('Exposed to OS', nil)
+        unmap_enabled = vd_output.fetch('Unmap Enabled', nil)
+        data_protection = vd_output.fetch('Data Protection', nil)
+
         # Properties sub-hash
         vd['properties'] = {
           'stripe_size'                => vd_output.fetch('Strip Size', nil),
@@ -493,6 +498,9 @@ class Megaraid
           'is_vd_boot_drive'           => is_boot_drive,
           'disk_cache_policy'          => physical_drive_cache,
           'encryption'                 => vd_output.fetch('Encryption', nil),
+          'exposed_to_os'              => exposed_to_os,
+          'unmap_enabled'              => unmap_enabled,
+          'data_protection'            => data_protection,
         }
       end
 

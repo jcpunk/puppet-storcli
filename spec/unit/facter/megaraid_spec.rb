@@ -349,6 +349,10 @@ describe :megaraid, type: :fact do
               expect(props).to have_key('stripe_size')
               expect(props).to have_key('span_depth')
               expect(props).to have_key('number_of_drives_per_span')
+              # New configuration-relevant properties
+              expect(props).to have_key('exposed_to_os')
+              expect(props).to have_key('unmap_enabled')
+              expect(props).to have_key('data_protection')
             end
           end
         end
