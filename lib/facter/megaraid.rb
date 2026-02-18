@@ -15,11 +15,11 @@ class Megaraid
     Dir.exist?('/sys/bus/pci/drivers/megaraid_sas') || Dir.exist?('/sys/bus/pci/drivers/mpt3sas')
   end
 
-  # where's storcli application
-  def storcli
-    return @storcli if defined?(@storcli)
-    @storcli = nil
-    return unless present?
+  # Find all available storcli/perccli applications
+  def storcli_tools
+    return @storcli_tools if defined?(@storcli_tools)
+    @storcli_tools = []
+    return @storcli_tools unless present?
 
     dmi = Facter.value(:dmi)
     manufacturer = dmi.is_a?(Hash) ? dmi['manufacturer'] : nil
@@ -36,14 +36,24 @@ class Megaraid
          'storcli',   '/opt/MegaRAID/storcli/storcli']
       end
 
+    # Find all available tools (a system might have both storcli and storcli2)
+    seen_paths = {}
     storcli_locations.each do |run|
       path = Facter::Util::Resolution.which(run)
       next unless path
-      @storcli = path
-      break
+      # Avoid duplicates (e.g., storcli and /usr/bin/storcli might be the same)
+      next if seen_paths[path]
+      seen_paths[path] = true
+      @storcli_tools << path
     end
 
-    @storcli
+    @storcli_tools
+  end
+
+  # Return first available storcli tool for backward compatibility
+  def storcli
+    tools = storcli_tools
+    tools.empty? ? nil : tools.first
   end
 
   # Function to call all get methods
@@ -55,131 +65,149 @@ class Megaraid
     end
   end
 
-  # Get controller information
+  # Get controller information from all available CLI tools
   def controller_info
     @controller_info = {}
     return unless present?
-    return unless storcli
+    
+    tools = storcli_tools
+    return if tools.empty?
 
-    raw = Facter::Util::Resolution.exec("#{storcli} /call show J nolog")
-    return unless raw && !raw.empty?
+    # Query each available CLI tool and combine results
+    tools.each do |tool|
+      raw = Facter::Util::Resolution.exec("#{tool} /call show J nolog")
+      next unless raw && !raw.empty?
 
-    output = begin
-               JSON.parse(raw)
-             rescue StandardError
-               nil
-             end
-    return unless output.is_a?(Hash)
+      output = begin
+                 JSON.parse(raw)
+               rescue StandardError
+                 nil
+               end
+      next unless output.is_a?(Hash)
 
-    output.fetch('Controllers', []).each do |controller|
-      next if controller.dig('Command Status', 'Status') == 'Failure'
-      id = controller.dig('Command Status', 'Controller')
-      next if id.nil?
+      output.fetch('Controllers', []).each do |controller|
+        next if controller.dig('Command Status', 'Status') == 'Failure'
+        id = controller.dig('Command Status', 'Controller')
+        next if id.nil?
 
-      @controller_info[id] = controller.fetch('Response Data', {})
+        # Store which tool found this controller
+        controller_data = controller.fetch('Response Data', {})
+        controller_data['_storcli_tool'] = tool
+        @controller_info[id] = controller_data
+      end
     end
   end
 
-  # Get patrol read information
+  # Get patrol read information from all available CLI tools
   def pr_info
     @pr_info = {}
     return unless present?
-    return unless storcli
     return unless num_controllers.positive?
+    
+    tools = storcli_tools
+    return if tools.empty?
 
-    raw = Facter::Util::Resolution.exec("#{storcli} /call show patrolread J nolog")
-    return unless raw && !raw.empty?
+    # Query each available CLI tool
+    tools.each do |tool|
+      raw = Facter::Util::Resolution.exec("#{tool} /call show patrolread J nolog")
+      next unless raw && !raw.empty?
 
-    output = begin
-               JSON.parse(raw)
-             rescue StandardError
-               nil
-             end
-    return unless output.is_a?(Hash)
+      output = begin
+                 JSON.parse(raw)
+               rescue StandardError
+                 nil
+               end
+      next unless output.is_a?(Hash)
 
-    output.fetch('Controllers', []).each do |controller|
-      pr_properties = {}
-      controller_properties = controller.dig('Response Data', 'Controller Properties') || {}
+      output.fetch('Controllers', []).each do |controller|
+        pr_properties = {}
+        controller_properties = controller.dig('Response Data', 'Controller Properties') || {}
 
-      if controller_properties.empty?
-        pr_properties['mode'] = 'Un-supported'
-        pr_properties['next_start_time'] = 'Un-supported'
-      else
-        controller_properties.each do |attribute|
-          key = attribute['Ctrl_Prop']
-          val = attribute['Value']
+        if controller_properties.empty?
+          pr_properties['mode'] = 'Un-supported'
+          pr_properties['next_start_time'] = 'Un-supported'
+        else
+          controller_properties.each do |attribute|
+            key = attribute['Ctrl_Prop']
+            val = attribute['Value']
 
-          case key
-          when 'PR Mode'
-            pr_properties['mode'] = val
-          when 'PR Execution Delay'
-            pr_properties['execution_delay'] = val.to_i
-          when 'PR on SSD'
-            pr_properties['on_ssd'] = (val != 'Disabled')
-          when 'PR Next Start time'
-            begin
-              t = Time.strptime(val, '%m/%d/%Y, %H:%M:%S')
-              pr_properties['next_start_time'] = t.strftime('%A at %H:%M:%S')
-            rescue StandardError
-              pr_properties['next_start_time'] = val
+            case key
+            when 'PR Mode'
+              pr_properties['mode'] = val
+            when 'PR Execution Delay'
+              pr_properties['execution_delay'] = val.to_i
+            when 'PR on SSD'
+              pr_properties['on_ssd'] = (val != 'Disabled')
+            when 'PR Next Start time'
+              begin
+                t = Time.strptime(val, '%m/%d/%Y, %H:%M:%S')
+                pr_properties['next_start_time'] = t.strftime('%A at %H:%M:%S')
+              rescue StandardError
+                pr_properties['next_start_time'] = val
+              end
             end
           end
         end
-      end
 
-      id = controller.dig('Command Status', 'Controller')
-      @pr_info[id] = pr_properties if id
+        id = controller.dig('Command Status', 'Controller')
+        @pr_info[id] = pr_properties if id
+      end
     end
   end
 
-  # Get consistency check information
+  # Get consistency check information from all available CLI tools
   def cc_info
     @cc_info = {}
     return unless present?
-    return unless storcli
     return unless num_controllers.positive?
+    
+    tools = storcli_tools
+    return if tools.empty?
 
-    raw = Facter::Util::Resolution.exec("#{storcli} /call show cc J nolog")
-    return unless raw && !raw.empty?
+    # Query each available CLI tool
+    tools.each do |tool|
+      raw = Facter::Util::Resolution.exec("#{tool} /call show cc J nolog")
+      next unless raw && !raw.empty?
 
-    output = begin
-               JSON.parse(raw)
-             rescue StandardError
-               nil
-             end
-    return unless output.is_a?(Hash)
+      output = begin
+                 JSON.parse(raw)
+               rescue StandardError
+                 nil
+               end
+      next unless output.is_a?(Hash)
 
-    output.fetch('Controllers', []).each do |controller|
-      cc_properties = {}
-      controller_properties =
-        controller.dig('Response Data', 'Controller Properties') || {}
+      output.fetch('Controllers', []).each do |controller|
+        cc_properties = {}
+        controller_properties =
+          controller.dig('Response Data', 'Controller Properties') || {}
 
-      if controller_properties.empty?
-        cc_properties['operation_mode'] = 'Un-supported'
-        cc_properties['next_start_time'] = 'Un-supported'
-      else
-        controller_properties.each do |attribute|
-          key = attribute['Ctrl_Prop']
-          val = attribute['Value']
+        if controller_properties.empty?
+          cc_properties['operation_mode'] = 'Un-supported'
+          cc_properties['next_start_time'] = 'Un-supported'
+        else
+          controller_properties.each do |attribute|
+            key = attribute['Ctrl_Prop']
+            val = attribute['Value']
 
-          case key
-          when 'CC Operation Mode'
-            cc_properties['operation_mode'] = val
-          when 'CC Execution Delay'
-            cc_properties['execution_delay'] = val.to_i
-          when 'CC Next Starttime'
-            begin
-              t = Time.strptime(val, '%m/%d/%Y, %H:%M:%S')
-              cc_properties['next_start_time'] = t.strftime('%A at %H:%M:%S')
-            rescue StandardError
-              cc_properties['next_start_time'] = val
+            case key
+            when 'CC Operation Mode'
+              cc_properties['operation_mode'] = val
+            when 'CC Execution Delay'
+              cc_properties['execution_delay'] = val.to_i
+            when 'CC Next Starttime'
+              begin
+                t = Time.strptime(val, '%m/%d/%Y, %H:%M:%S')
+                cc_properties['next_start_time'] = t.strftime('%A at %H:%M:%S')
+              rescue StandardError
+                cc_properties['next_start_time'] = val
+              end
             end
           end
         end
-      end
 
-      id = controller.dig('Command Status', 'Controller')
-      @cc_info[id] = cc_properties if id
+        id = controller.dig('Command Status', 'Controller')
+        @cc_info[id] = cc_properties if id
+      end
     end
   end
 
@@ -194,6 +222,9 @@ class Megaraid
 
     @controller_info.each do |controller, parameters|
       vd = {}
+
+      # Get the tool that found this controller
+      tool = parameters.fetch('_storcli_tool', storcli)
 
       # Handle VD LIST - may be null for JBOD-only controllers
       vd_list = parameters.fetch('VD LIST', [])
@@ -210,7 +241,7 @@ class Megaraid
         vd[vd_id] = {}
 
         raw = Facter::Util::Resolution.exec(
-          "#{storcli} /c#{controller}/v#{vd_id} show all J nolog",
+          "#{tool} /c#{controller}/v#{vd_id} show all J nolog",
         )
         next unless raw && !raw.empty?
 
@@ -287,6 +318,7 @@ class Megaraid
         'patrol_read'      => @pr_info[controller],
         'consistency_check' => @cc_info[controller],
       }
+      # Note: _storcli_tool is intentionally not included in output (internal use only)
     end
 
     ctrls
@@ -299,6 +331,7 @@ class Megaraid
     {
       'present'               => present?,
       'storcli'               => storcli,
+      'storcli_tools'         => storcli_tools,
       'number_of_controllers' => num_controllers,
       'controllers'           => controllers_info,
     }

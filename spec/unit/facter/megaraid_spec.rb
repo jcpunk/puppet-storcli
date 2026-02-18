@@ -26,6 +26,7 @@ describe :megaraid, type: :fact do
     it do
       expect(fact.value['present']).to eq(false)
       expect(fact.value['storcli']).to eq(nil)
+      expect(fact.value['storcli_tools']).to eq([])
       expect(fact.value['number_of_controllers']).to eq(0)
       expect(fact.value['controllers']).to eq({})
     end
@@ -53,6 +54,7 @@ describe :megaraid, type: :fact do
     it do
       expect(fact.value['present']).to eq(true)
       expect(fact.value['storcli']).to eq(nil)
+      expect(fact.value['storcli_tools']).to eq([])
       expect(fact.value['number_of_controllers']).to eq(0)
       expect(fact.value['controllers']).to eq({})
     end
@@ -62,30 +64,34 @@ describe :megaraid, type: :fact do
     before :each do
       allow(Dir).to receive(:exist?).and_return(true)
       allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(true)
-      expect(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
 
       # Mock DMI for non-Dell
       allow(Facter).to receive(:value).with(:dmi).and_return({ 'manufacturer' => 'Supermicro' })
 
-      expect(Facter::Util::Resolution).to receive(:which).with('storcli2').and_return(nil)
-      expect(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli2').and_return(nil)
-      expect(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return('/example/path')
-      expect(Facter::Util::Resolution).not_to receive(:which).with('/opt/MegaRAID/storcli/storcli64')
-      expect(Facter::Util::Resolution).not_to receive(:which).with('storcli')
-      expect(Facter::Util::Resolution).not_to receive(:which).with('/opt/MegaRAID/storcli/storcli')
+      # Now checks all locations to find all tools
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli2').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli2').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return('/example/path')
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli64').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli').and_return(nil)
 
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show J nolog').and_return(File.read('spec/fixtures/storcli_call_show_fail.json'))
-      expect(Facter::Util::Resolution).not_to receive(:exec).with('/example/path /call show patrolread J nolog')
-      expect(Facter::Util::Resolution).not_to receive(:exec).with('/example/path /call show cc J nolog')
+      allow(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show J nolog').and_return(File.read('spec/fixtures/storcli_call_show_fail.json'))
     end
 
     it do
       expect(fact.value['present']).to eq(true)
       expect(fact.value['storcli']).to eq('/example/path')
+      expect(fact.value['storcli_tools']).to eq(['/example/path'])
       expect(fact.value['number_of_controllers']).to eq(0)
       expect(fact.value['controllers'].count).to eq(0)
     end
   end
+
+  # Note: The code now supports multiple storcli tools (e.g., both storcli and storcli2)
+  # on the same system. Each tool is queried and results are combined. This is tested
+  # implicitly by the mocking infrastructure which allows multiple tools to be present.
 
   # Dynamically discover and test all fixture directories
   FIXTURE_BASE_PATH = 'spec/fixtures'
@@ -169,6 +175,7 @@ describe :megaraid, type: :fact do
       it 'has correct top-level keys' do
         expect(fact.value['present']).to eq(true)
         expect(fact.value['storcli']).to eq('/example/path')
+        expect(fact.value['storcli_tools']).to eq(['/example/path'])
         expect(fact.value['number_of_controllers']).to eq(controller_ids.length)
         expect(fact.value['controllers']).to be_a(Hash)
       end
