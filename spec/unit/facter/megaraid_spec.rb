@@ -1,181 +1,523 @@
 # frozen_string_literal: true
 
-require 'spec_helper'
+require 'rspec'
+require 'json'
+require 'time'
 require 'facter'
-require 'facter/megaraid'
+
+require_relative '../../../lib/facter/megaraid'
 
 describe :megaraid, type: :fact do
   subject(:fact) { Facter.fact(:megaraid) }
 
   before :each do
-    # perform any action that should be run before every test
     Facter.clear
   end
 
-  context 'no module present' do
-    before :each do
-      allow(Dir).to receive(:exist?).and_return(false)
-      expect(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(false)
-      expect(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(false)
+  # Discover all fixture directories at test-definition time
+  FIXTURE_DIRS = Dir.glob('spec/fixtures/*/').map { |path| File.basename(path) }.sort
 
-      expect(Facter::Util::Resolution).not_to receive(:which)
-      expect(Facter::Util::Resolution).not_to receive(:exec)
+  # Parse fixture JSON files for a given fixture directory
+  def self.parse_fixture(fixture_name, file)
+    path = File.join('spec/fixtures', fixture_name, file)
+    return nil unless File.exist?(path)
+
+    JSON.parse(File.read(path))
+  rescue JSON::ParserError
+    nil
+  end
+
+  # Extract expected values from fixture data
+  def self.analyze_fixture(fixture_name)
+    call_show = parse_fixture(fixture_name, 'storcli_call_show.json')
+    pr_data = parse_fixture(fixture_name, 'storcli_call_show_patrolread.json')
+    cc_data = parse_fixture(fixture_name, 'storcli_call_show_cc.json')
+
+    return nil unless call_show
+
+    controllers = call_show.fetch('Controllers', [])
+    
+    # Extract successful controllers
+    successful_controllers = controllers.select do |ctrl|
+      ctrl.dig('Command Status', 'Status') != 'Failure'
     end
 
-    it do
-      expect(fact.value['present?']).to eq(false)
-      expect(fact.value['storcli']).to eq(nil)
-      expect(fact.value['number_of_controllers']).to eq(0)
-      expect(fact.value['controllers']).to eq({})
+    # Extract controller IDs and their data
+    controller_info = {}
+    successful_controllers.each do |ctrl|
+      id = ctrl.dig('Command Status', 'Controller')
+      next unless id
+
+      data = ctrl.fetch('Response Data', {})
+      controller_info[id] = data
+    end
+
+    # Extract VD information per controller
+    vd_files = Dir.glob(File.join('spec/fixtures', fixture_name, 'storcli_call_show_vdisk*.json'))
+    vd_data = {}
+    vd_files.each do |vd_file|
+      vd_json = JSON.parse(File.read(vd_file))
+      vd_data[File.basename(vd_file)] = vd_json
+    rescue JSON::ParserError
+      next
+    end
+
+    # Determine if this is a Dell PERC fixture
+    is_perc = fixture_name.include?('PERC')
+
+    {
+      fixture_name: fixture_name,
+      is_perc: is_perc,
+      num_controllers: controller_info.size,
+      controller_info: controller_info,
+      pr_data: pr_data,
+      cc_data: cc_data,
+      vd_data: vd_data,
+    }
+  end
+
+  # Helper to setup mocks for a fixture
+  def setup_fixture_mocks(fixture_info)
+    # Mock hardware present
+    allow(Dir).to receive(:exist?).and_call_original
+    allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
+    allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(true)
+    
+    # Mock Dir.chdir
+    allow(Dir).to receive(:chdir).with('/tmp').and_yield
+
+    # Mock DMI for Dell vs non-Dell
+    if fixture_info[:is_perc]
+      allow(Facter).to receive(:value).with(:dmi).and_return({ 'manufacturer' => 'Dell Inc.' })
+    else
+      allow(Facter).to receive(:value).with(:dmi).and_return({ 'manufacturer' => 'Supermicro' })
+    end
+
+    # Mock which for appropriate tools
+    tool_path = '/example/path'
+    if fixture_info[:is_perc]
+      allow(Facter::Util::Resolution).to receive(:which).with('perccli64').and_return(tool_path)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/perccli/perccli64').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('perccli').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/perccli/perccli').and_return(nil)
+    else
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return(tool_path)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli64').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli').and_return(nil)
+    end
+
+    # Mock exec calls
+    fixture_name = fixture_info[:fixture_name]
+    
+    # Main controller info
+    call_show_path = File.join('spec/fixtures', fixture_name, 'storcli_call_show.json')
+    allow(Facter::Util::Resolution).to receive(:exec).with("#{tool_path} /call show J nolog")
+      .and_return(File.read(call_show_path))
+
+    # Patrol read info
+    pr_path = File.join('spec/fixtures', fixture_name, 'storcli_call_show_patrolread.json')
+    if File.exist?(pr_path)
+      allow(Facter::Util::Resolution).to receive(:exec).with("#{tool_path} /call show patrolread J nolog")
+        .and_return(File.read(pr_path))
+    else
+      allow(Facter::Util::Resolution).to receive(:exec).with("#{tool_path} /call show patrolread J nolog")
+        .and_return(nil)
+    end
+
+    # Consistency check info
+    cc_path = File.join('spec/fixtures', fixture_name, 'storcli_call_show_cc.json')
+    if File.exist?(cc_path)
+      allow(Facter::Util::Resolution).to receive(:exec).with("#{tool_path} /call show cc J nolog")
+        .and_return(File.read(cc_path))
+    else
+      allow(Facter::Util::Resolution).to receive(:exec).with("#{tool_path} /call show cc J nolog")
+        .and_return(nil)
+    end
+
+    # Controller settings and BBU (no fixtures, return nil)
+    allow(Facter::Util::Resolution).to receive(:exec).with("#{tool_path} /call show all J nolog")
+      .and_return(nil)
+    allow(Facter::Util::Resolution).to receive(:exec).with("#{tool_path} /call show bbu J nolog")
+      .and_return(nil)
+
+    # Mock VD detail calls
+    fixture_info[:controller_info].each do |controller_id, controller_data|
+      vd_list = controller_data.fetch('VD LIST', [])
+      vd_list.each do |vd_item|
+        # Parse VD ID from DG/VD or VD field
+        if vd_item.key?('DG/VD')
+          _dg_id, vd_id = vd_item['DG/VD'].split('/')
+        elsif vd_item.key?('VD')
+          vd_id = vd_item['VD'].to_s
+        else
+          next
+        end
+
+        vd_file = "storcli_call_show_vdisk#{vd_id}.json"
+        vd_path = File.join('spec/fixtures', fixture_name, vd_file)
+        
+        if File.exist?(vd_path)
+          allow(Facter::Util::Resolution).to receive(:exec)
+            .with("#{tool_path} /c#{controller_id}/v#{vd_id} show all J nolog")
+            .and_return(File.read(vd_path))
+        else
+          allow(Facter::Util::Resolution).to receive(:exec)
+            .with("#{tool_path} /c#{controller_id}/v#{vd_id} show all J nolog")
+            .and_return(nil)
+        end
+      end
+    end
+  end
+
+  # Parse schedule time as the fact does
+  def parse_schedule_time(val)
+    Time.strptime(val, '%m/%d/%Y, %H:%M:%S').strftime('%Y-%m-%d %H:%M:%S')
+  rescue StandardError
+    val
+  end
+
+  #
+  # Static edge case tests
+  #
+
+  context 'no module present' do
+    before :each do
+      allow(Dir).to receive(:exist?).and_call_original
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(false)
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(false)
+    end
+
+    it 'returns present false only' do
+      expect(fact.value).to eq({ 'present' => false })
+    end
+
+    it 'does not call which or exec' do
+      expect(Facter::Util::Resolution).not_to receive(:which)
+      expect(Facter::Util::Resolution).not_to receive(:exec)
+      fact.value
     end
   end
 
   context 'module present, no storcli' do
     before :each do
-      allow(Dir).to receive(:exist?).and_return(true)
+      allow(Dir).to receive(:exist?).and_call_original
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
       allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(true)
-      expect(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
+      allow(Facter).to receive(:value).with(:dmi).and_return({ 'manufacturer' => 'Supermicro' })
 
-      expect(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return(nil)
-      expect(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli64').and_return(nil)
-      expect(Facter::Util::Resolution).to receive(:which).with('storcli').and_return(nil)
-      expect(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli64').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli').and_return(nil)
+    end
 
+    it 'returns present false only' do
+      expect(fact.value).to eq({ 'present' => false })
+    end
+
+    it 'does not call exec' do
       expect(Facter::Util::Resolution).not_to receive(:exec)
-    end
-
-    it do
-      expect(fact.value['present?']).to eq(true)
-      expect(fact.value['storcli']).to eq(nil)
-      expect(fact.value['number_of_controllers']).to eq(0)
-      expect(fact.value['controllers']).to eq({})
+      fact.value
     end
   end
 
-  context 'module present, storcli present on AVAGO 3108 MegaRAID' do
+  context 'card unsupported (all controllers return Failure)' do
     before :each do
-      allow(Dir).to receive(:exist?).and_return(true)
+      allow(Dir).to receive(:exist?).and_call_original
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
       allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(true)
-      expect(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
+      allow(Dir).to receive(:chdir).with('/tmp').and_yield
+      allow(Facter).to receive(:value).with(:dmi).and_return({ 'manufacturer' => 'Supermicro' })
 
-      expect(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return('/example/path')
-      expect(Facter::Util::Resolution).not_to receive(:which).with('/opt/MegaRAID/storcli/storcli64')
-      expect(Facter::Util::Resolution).not_to receive(:which).with('storcli')
-      expect(Facter::Util::Resolution).not_to receive(:which).with('/opt/MegaRAID/storcli/storcli')
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return('/example/path')
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli64').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli').and_return(nil)
 
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show J nolog').and_return(File.read('spec/fixtures/3108/storcli_call_show.json'))
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show patrolread J nolog').and_return(File.read('spec/fixtures/3108/storcli_call_show_patrolread.json'))
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show cc J nolog').and_return(File.read('spec/fixtures/3108/storcli_call_show_cc.json'))
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /c0/v0 show all J nolog').and_return(File.read('spec/fixtures/3108/storcli_call_show_vdisk0.json'))
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /c1/v0 show all J nolog').and_return(File.read('spec/fixtures/3108/storcli_call_show_vdisk0.json'))
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /c1/v234 show all J nolog').and_return(File.read('spec/fixtures/3108/storcli_call_show_vdisk234.json'))
+      allow(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show J nolog')
+        .and_return(File.read('spec/fixtures/storcli_call_show_fail.json'))
+      allow(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show patrolread J nolog')
+        .and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show cc J nolog')
+        .and_return(nil)
     end
 
-    it do
-      expect(fact.value['present?']).to eq(true)
-      expect(fact.value['storcli']).to eq('/example/path')
-      expect(fact.value['number_of_controllers']).to eq(3)
-    end
-    it 'controllers structure' do
-      expect(fact.value['controllers'].count).to eq(3)
-
-      # key product_name
-      expect(fact.value.fetch('controllers')['0']['product_name']).to eq('AVAGO 3108 MegaRAID')
-      expect(fact.value.fetch('controllers')['1']['product_name']).to eq('AVAGO 3108 MegaRAID')
-      expect(fact.value.fetch('controllers')['2']['product_name']).to eq('LSI3008-IR')
-
-      # key patrol_read/PR Next Start time
-      expect(fact.value.fetch('controllers')['0']['patrol_read']['PR Next Start time']).to eq('Saturday at 03:00:00')
-      expect(fact.value.fetch('controllers')['1']['patrol_read']['PR Next Start time']).to eq('Saturday at 03:00:00')
-      expect(fact.value.fetch('controllers')['2']['patrol_read']['PR Next Start time']).to eq('Un-supported')
-      expect(fact.value.fetch('controllers')['2']['patrol_read']['PR Mode']).to eq('Un-supported')
-
-      # key consistency_check/CC Next Starttime
-      expect(fact.value.fetch('controllers')['0']['consistency_check']['CC Next Starttime']).to eq('Saturday at 03:00:00')
-      expect(fact.value.fetch('controllers')['1']['consistency_check']['CC Next Starttime']).to eq('Saturday at 03:00:00')
-      expect(fact.value.fetch('controllers')['2']['consistency_check']['CC Next Starttime']).to eq('Un-supported')
-      expect(fact.value.fetch('controllers')['2']['consistency_check']['CC Operation Mode']).to eq('Un-supported')
-
-      # virtual drives
-      expect(fact.value.fetch('controllers')['0']['virtual_drives']).to eq('0' => { 'Encryption' => 'None', 'IO Policy' => 'direct', 'Name' => 'storage1', 'Physical Drive Cache' => 'default',
-                                                                                    'Read Cache' => 'ra', 'State' => 'Optl', 'Strip Size' => '256 KB', 'Type' => 'RAID6', 'Write Cache' => 'wb' })
-      expect(fact.value.fetch('controllers')['1']['virtual_drives']).to eq(
-        '0' => { 'Encryption' => 'None', 'IO Policy' => 'direct', 'Name' => 'storage2', 'Physical Drive Cache' => 'default', 'Read Cache' => 'ra', 'State' => 'Optl', 'Strip Size' => '256 KB',
-                 'Type' => 'RAID6', 'Write Cache' => 'wb' },
-        '234' => { 'Encryption' => 'None', 'IO Policy' => 'direct', 'Name' => 'OS', 'Physical Drive Cache' => 'default', 'Read Cache' => 'ra', 'State' => 'Optl', 'Strip Size' => '256 KB',
-                   'Type' => 'RAID1', 'Write Cache' => 'wb' },
-      )
-      expect(fact.value.fetch('controllers')['2']['virtual_drives']).to eq({})
+    it 'returns present false only' do
+      expect(fact.value).to eq({ 'present' => false })
     end
   end
 
-  context 'module present, storcli present on MegaRAID 9560' do
-    before :each do
-      allow(Dir).to receive(:exist?).and_return(true)
-      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(true)
-      expect(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
+  #
+  # Data-driven fixture tests
+  #
 
-      expect(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return('/example/path')
-      expect(Facter::Util::Resolution).not_to receive(:which).with('/opt/MegaRAID/storcli/storcli64')
-      expect(Facter::Util::Resolution).not_to receive(:which).with('storcli')
-      expect(Facter::Util::Resolution).not_to receive(:which).with('/opt/MegaRAID/storcli/storcli')
+  FIXTURE_DIRS.each do |fixture_name|
+    fixture_info = analyze_fixture(fixture_name)
+    next unless fixture_info
+    next if fixture_info[:num_controllers].zero?
 
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show J nolog').and_return(File.read('spec/fixtures/9560/storcli_call_show.json'))
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show patrolread J nolog').and_return(File.read('spec/fixtures/9560/storcli_call_show_patrolread.json'))
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show cc J nolog').and_return(File.read('spec/fixtures/9560/storcli_call_show_cc.json'))
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /c0/v238 show all J nolog').and_return(File.read('spec/fixtures/9560/storcli_call_show_vdisk238.json'))
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /c0/v239 show all J nolog').and_return(File.read('spec/fixtures/9560/storcli_call_show_vdisk239.json'))
-    end
+    context "with fixture: #{fixture_name}" do
+      before :each do
+        setup_fixture_mocks(fixture_info)
+      end
 
-    it do
-      expect(fact.value['present?']).to eq(true)
-      expect(fact.value['storcli']).to eq('/example/path')
-      expect(fact.value['number_of_controllers']).to eq(1)
-    end
-    it 'controllers structure' do
-      expect(fact.value['controllers'].count).to eq(1)
+      it 'has correct top-level structure' do
+        result = fact.value
+        
+        expect(result['present']).to eq(true)
+        expect(result['storcli']).to eq('/example/path')
+        expect(result['number_of_controllers']).to eq(fixture_info[:num_controllers])
+        expect(result['controllers']).to be_a(Hash)
+        expect(result['controllers'].size).to eq(fixture_info[:num_controllers])
+      end
 
-      # key product_name
-      expect(fact.value.fetch('controllers')['0']['product_name']).to eq('MegaRAID 9560-8i 4GB')
+      it 'does not have storcli_tools or tool_info keys' do
+        result = fact.value
+        expect(result).not_to have_key('storcli_tools')
+        expect(result).not_to have_key('tool_info')
+        expect(result).not_to have_key('error')
+      end
 
-      # key patrol_read/PR Next Start time
-      expect(fact.value.fetch('controllers')['0']['patrol_read']['PR Next Start time']).to eq('Saturday at 03:00:00')
+      fixture_info[:controller_info].each do |controller_id, controller_data|
+        context "controller #{controller_id}" do
+          let(:controller) do
+            result = fact.value
+            # Controller IDs in the fact output are strings (Facter serialization)
+            result['controllers'][controller_id.to_s]
+          end
 
-      # key consistency_check/CC Next Starttime
-      expect(fact.value.fetch('controllers')['0']['consistency_check']['CC Next Starttime']).to eq('Saturday at 03:00:00')
+          it 'has correct metadata' do
+            expect(controller).to be_a(Hash)
+            expect(controller['product_name']).to eq(controller_data.fetch('Product Name', nil))
+            expect(controller['serial_number']).to eq(controller_data.fetch('Serial Number', nil))
+            expect(controller['fw_package_build']).to eq(controller_data.fetch('FW Package Build', nil))
+            expect(controller['fw_version']).to eq(controller_data.fetch('FW Version', nil))
+            expect(controller['bios_version']).to eq(controller_data.fetch('BIOS Version', nil))
+            expect(controller['driver_name']).to eq(controller_data.fetch('Driver Name', nil))
+            expect(controller['device_interface']).to eq(controller_data.fetch('Device Interface', nil))
+            expect(controller['drive_groups_count']).to eq(controller_data.fetch('Drive Groups', nil))
+            expect(controller['physical_drive_count']).to eq(controller_data.fetch('Physical Drives', nil))
+            expect(controller['storcli_tool']).to eq('/example/path')
+          end
 
-      # virtual drives
-      expect(fact.value.fetch('controllers')['0']['virtual_drives']).to eq(
-             '238' => { 'Encryption' => 'None', 'IO Policy' => 'direct', 'Name' => '', 'Physical Drive Cache' => 'default',
-                        'Read Cache' => 'ra', 'State' => 'Optl', 'Strip Size' => '256 KB', 'Type' => 'RAID10',
-                        'Write Cache' => 'wb' },
-             '239' => { 'Encryption' => 'None', 'IO Policy' => 'direct', 'Name' => '', 'Physical Drive Cache' => 'default',
-                        'Read Cache' => 'ra', 'State' => 'Optl', 'Strip Size' => '256 KB', 'Type' => 'RAID1', 'Write Cache' => 'wb' },
-           )
-    end
-  end
+          it 'has drive_groups as a Hash' do
+            expect(controller['drive_groups']).to be_a(Hash)
+          end
 
-  context 'module present, storcli present, card unsupported' do
-    before :each do
-      allow(Dir).to receive(:exist?).and_return(true)
-      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(true)
-      expect(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
+          # Test patrol_read structure
+          if fixture_info[:pr_data]
+            pr_controllers = fixture_info[:pr_data].fetch('Controllers', [])
+            pr_ctrl = pr_controllers.find { |c| c.dig('Command Status', 'Controller') == controller_id }
+            
+            if pr_ctrl && pr_ctrl.dig('Command Status', 'Status') == 'Success'
+              pr_props = pr_ctrl.dig('Response Data', 'Controller Properties') || []
+              
+              unless pr_props.empty?
+                it 'has patrol_read with new snake_case keys' do
+                  expect(controller['patrol_read']).to be_a(Hash)
+                  
+                  # Verify new keys exist
+                  pr = controller['patrol_read']
+                  pr_props.each do |attr|
+                    case attr['Ctrl_Prop']
+                    when 'PR Mode'
+                      expect(pr['mode']).to eq(attr['Value'])
+                    when 'PR Execution Delay'
+                      expect(pr['execution_delay']).to eq(attr['Value'].to_i)
+                    when 'PR on SSD'
+                      expect(pr['on_ssd']).to eq(attr['Value'] != 'Disabled')
+                    when 'PR Next Start time'
+                      expected_time = parse_schedule_time(attr['Value'])
+                      expect(pr['next_start_time']).to eq(expected_time)
+                    end
+                  end
+                end
 
-      expect(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return('/example/path')
-      expect(Facter::Util::Resolution).not_to receive(:which).with('/opt/MegaRAID/storcli/storcli64')
-      expect(Facter::Util::Resolution).not_to receive(:which).with('storcli')
-      expect(Facter::Util::Resolution).not_to receive(:which).with('/opt/MegaRAID/storcli/storcli')
+                it 'does not have old-style PR keys' do
+                  pr = controller['patrol_read']
+                  expect(pr).not_to have_key('PR Mode')
+                  expect(pr).not_to have_key('PR Current State')
+                  expect(pr).not_to have_key('PR iterations completed')
+                  expect(pr).not_to have_key('PR Excluded VDs')
+                  expect(pr).not_to have_key('PR MaxConcurrentPd')
+                  expect(pr).not_to have_key('PR Execution Delay')
+                  expect(pr).not_to have_key('PR on SSD')
+                  expect(pr).not_to have_key('PR Next Start time')
+                end
+              end
+            else
+              it 'does not have patrol_read key (controller does not support it or failed)' do
+                expect(controller).not_to have_key('patrol_read')
+              end
+            end
+          end
 
-      expect(Facter::Util::Resolution).to receive(:exec).with('/example/path /call show J nolog').and_return(File.read('spec/fixtures/storcli_call_show_fail.json'))
-      expect(Facter::Util::Resolution).not_to receive(:exec).with('/example/path /call show patrolread J nolog')
-      expect(Facter::Util::Resolution).not_to receive(:exec).with('/example/path /call show cc J nolog')
-    end
+          # Test consistency_check structure
+          if fixture_info[:cc_data]
+            cc_controllers = fixture_info[:cc_data].fetch('Controllers', [])
+            cc_ctrl = cc_controllers.find { |c| c.dig('Command Status', 'Controller') == controller_id }
+            
+            if cc_ctrl && cc_ctrl.dig('Command Status', 'Status') == 'Success'
+              cc_props = cc_ctrl.dig('Response Data', 'Controller Properties') || []
+              
+              unless cc_props.empty?
+                it 'has consistency_check with new snake_case keys' do
+                  expect(controller['consistency_check']).to be_a(Hash)
+                  
+                  # Verify new keys exist
+                  cc = controller['consistency_check']
+                  cc_props.each do |attr|
+                    case attr['Ctrl_Prop']
+                    when 'CC Operation Mode'
+                      expect(cc['operation_mode']).to eq(attr['Value'])
+                    when 'CC Execution Delay'
+                      expect(cc['execution_delay']).to eq(attr['Value'].to_i)
+                    when 'CC Next Starttime'
+                      expected_time = parse_schedule_time(attr['Value'])
+                      expect(cc['next_start_time']).to eq(expected_time)
+                    end
+                  end
+                end
 
-    it do
-      expect(fact.value['present?']).to eq(true)
-      expect(fact.value['storcli']).to eq('/example/path')
-      expect(fact.value['number_of_controllers']).to eq(0)
-      expect(fact.value['controllers'].count).to eq(0)
+                it 'does not have old-style CC keys' do
+                  cc = controller['consistency_check']
+                  expect(cc).not_to have_key('CC Operation Mode')
+                  expect(cc).not_to have_key('CC Current State')
+                  expect(cc).not_to have_key('CC Number of iterations')
+                  expect(cc).not_to have_key('CC Excluded VDs')
+                  expect(cc).not_to have_key('CC Execution Delay')
+                  expect(cc).not_to have_key('CC Next Starttime')
+                end
+              end
+            else
+              it 'does not have consistency_check key (controller does not support it or failed)' do
+                expect(controller).not_to have_key('consistency_check')
+              end
+            end
+          end
+
+          # Test that controller_settings and bbu_info are absent (no fixtures)
+          it 'does not have controller_settings (no fixture data)' do
+            expect(controller).not_to have_key('controller_settings')
+          end
+
+          it 'does not have bbu_info (no fixture data)' do
+            expect(controller).not_to have_key('bbu_info')
+          end
+
+          # Test virtual disks / drive groups
+          vd_list = controller_data.fetch('VD LIST', [])
+          if vd_list.any?
+            it 'has virtual disks in drive_groups' do
+              drive_groups = controller['drive_groups']
+              
+              vd_list.each do |vd_item|
+                # Parse DG/VD - all IDs are strings in the output
+                if vd_item.key?('DG/VD')
+                  dg_id, vd_id = vd_item['DG/VD'].split('/')
+                elsif vd_item.key?('VD')
+                  dg_id = '0'
+                  vd_id = vd_item['VD'].to_s
+                else
+                  next
+                end
+
+                # Verify drive group exists
+                expect(drive_groups[dg_id]).to be_a(Hash)
+                expect(drive_groups[dg_id]['virtual_disks']).to be_a(Hash)
+                
+                # Verify VD exists
+                vd = drive_groups[dg_id]['virtual_disks'][vd_id]
+                expect(vd).to be_a(Hash)
+                
+                # Verify VD basic fields
+                expect(vd['name']).to eq("/c#{controller_id}/v#{vd_id}")
+                expect(vd['raid_level']).to eq(vd_item.fetch('TYPE', nil))
+                expect(vd['state']).to eq(vd_item.fetch('State', nil))
+                expect(vd['size']).to eq(vd_item.fetch('Size', nil))
+                
+                # If we have VD detail fixture, verify properties
+                vd_file = "storcli_call_show_vdisk#{vd_id}.json"
+                vd_detail_data = fixture_info[:vd_data][vd_file]
+                
+                if vd_detail_data
+                  vd_props_data = vd_detail_data.dig('Controllers', 0, 'Response Data', "VD#{vd_id} Properties")
+                  
+                  if vd_props_data
+                    expect(vd['properties']).to be_a(Hash)
+                    
+                    # Verify properties structure
+                    props = vd['properties']
+                    
+                    # Check stripe_size
+                    if vd_props_data['Strip Size']
+                      expect(props['stripe_size']).to eq(vd_props_data['Strip Size'])
+                    end
+                    
+                    # Check encryption
+                    if vd_props_data['Encryption']
+                      expect(props['encryption']).to eq(vd_props_data['Encryption'])
+                    end
+                    
+                    # Check exposed_to_os
+                    if vd_props_data['Exposed to OS']
+                      expect(props['exposed_to_os']).to eq(vd_props_data['Exposed to OS'])
+                    end
+                    
+                    # Check disk_cache_policy normalization
+                    if vd_props_data['Disk Cache Policy']
+                      disk_cache = vd_props_data['Disk Cache Policy']
+                      normalized = case disk_cache
+                                  when "Disk's Default" then 'default'
+                                  when 'Enabled' then 'on'
+                                  when 'Disabled' then 'off'
+                                  else disk_cache
+                                  end
+                      expect(props['disk_cache_policy']).to eq(normalized)
+                    end
+                    
+                    # Verify write and read policies are derived from Cache string
+                    # Cache format is like "RWBD", "NRWTD", "RFWBC", "RAWBD", etc.
+                    # Write: AWB=AlwaysWriteBack, WB=WriteBack, WT=WriteThrough
+                    # Read: R=ReadAhead, NR=ReadAheadNone (NR must be checked before R)
+                    # IO: D=Direct, C=Cached
+                    cache_str = vd_item['Cache']
+                    if cache_str
+                      # Validate write policy - AWB must be checked before WB
+                      if cache_str.include?('AWB')
+                        expect(props['current_write_policy']).to eq('AlwaysWriteBack')
+                      elsif cache_str.include?('WB')
+                        expect(props['current_write_policy']).to eq('WriteBack')
+                      elsif cache_str.include?('WT')
+                        expect(props['current_write_policy']).to eq('WriteThrough')
+                      end
+                      
+                      # Validate read policy - NR must be checked before R
+                      if cache_str.start_with?('NR')
+                        expect(props['current_read_policy']).to eq('ReadAheadNone')
+                      elsif cache_str.start_with?('R')
+                        expect(props['current_read_policy']).to eq('ReadAhead')
+                      end
+                      
+                      # Validate IO policy
+                      if cache_str.end_with?('D')
+                        expect(props['io_policy']).to eq('Direct')
+                      elsif cache_str.end_with?('C')
+                        expect(props['io_policy']).to eq('Cached')
+                      end
+                    end
+                  end
+                end
+              end
+            end
+          else
+            it 'has empty drive_groups (no VDs)' do
+              expect(controller['drive_groups']).to eq({})
+            end
+          end
+        end
+      end
     end
   end
 end

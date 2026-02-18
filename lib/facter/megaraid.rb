@@ -9,7 +9,7 @@
 #
 #   megaraid:
 #     present:               bool
-#     storcli_tools:         ['/usr/bin/storcli2', ...]
+#     storcli:               '/usr/bin/storcli64'
 #     number_of_controllers: int
 #     controllers:
 #       <id>:
@@ -21,7 +21,7 @@
 #             virtual_disks:
 #               <vd_id>: { name, raid_level, size, state, properties: {...} }
 #         controller_settings: { <Ctrl_Prop key> => value, ... }
-#         bbu_info:           { state, [type, replacement_needed, learn_cycle_active] }
+#         bbu_info:           { state, type, replacement_needed, learn_cycle_active }
 #         patrol_read:        { mode, execution_delay, on_ssd, next_start_time }
 #         consistency_check:  { operation_mode, execution_delay, next_start_time }
 #
@@ -37,38 +37,35 @@ require 'json'
 require 'time'
 require 'timeout'
 
+# Main class for MegaRAID fact collection
 class Megaraid
+  MEGARAID_SAS_DRIVER_PATH = '/sys/bus/pci/drivers/megaraid_sas' unless defined?(MEGARAID_SAS_DRIVER_PATH)
+  MPT3SAS_DRIVER_PATH = '/sys/bus/pci/drivers/mpt3sas' unless defined?(MPT3SAS_DRIVER_PATH)
+  STORCLI_TIMEOUT = 60 unless defined?(STORCLI_TIMEOUT)
 
   # Hardware presence detection
   def present?
-    Dir.exist?('/sys/bus/pci/drivers/megaraid_sas') || Dir.exist?('/sys/bus/pci/drivers/mpt3sas')
+    Dir.exist?(MEGARAID_SAS_DRIVER_PATH) || Dir.exist?(MPT3SAS_DRIVER_PATH)
   end
 
   # CLI tool discovery
   def storcli_tools
     return @storcli_tools if defined?(@storcli_tools)
+
     @storcli_tools = []
     return @storcli_tools unless present?
 
     is_dell = Facter.value(:dmi)&.dig('manufacturer')&.include?('Dell') || false
+    candidates = is_dell ? perccli_candidates : storcli_candidates
 
-    candidates =
-      if is_dell
-        [
-         'perccli64', '/opt/MegaRAID/perccli/perccli64',
-         'perccli',   '/opt/MegaRAID/perccli/perccli']
-      else
-        [
-         'storcli64', '/opt/MegaRAID/storcli/storcli64',
-         'storcli',   '/opt/MegaRAID/storcli/storcli']
-      end
-
-    seen = {}
+    # Deduplicate paths in case symlinks point to the same binary
+    seen_paths = {}
     candidates.each do |name|
       path = Facter::Util::Resolution.which(name)
       next unless path
-      next if seen[path]
-      seen[path] = true
+      next if seen_paths[path]
+
+      seen_paths[path] = true
       @storcli_tools << path
     end
 
@@ -129,10 +126,10 @@ class Megaraid
   end
 
   # Parses a storcli schedule time string ("MM/DD/YYYY, HH:MM:SS") into a
-  # human-readable form ("Monday at 14:30:00").
+  # standard format ("YYYY-MM-DD HH:MM:SS").
   # Falls back to the original string if parsing fails so data is never silently lost.
   def parse_schedule_time(val)
-    Time.strptime(val, '%m/%d/%Y, %H:%M:%S').strftime('%A at %H:%M:%S')
+    Time.strptime(val, '%m/%d/%Y, %H:%M:%S').strftime('%Y-%m-%d %H:%M:%S')
   rescue StandardError
     val
   end
@@ -147,19 +144,10 @@ class Megaraid
       next unless id
 
       props = controller.dig('Response Data', 'Controller Properties') || []
-      next if props.empty?   # controller does not support patrol read
+      next if props.empty? # controller does not support patrol read
 
-      pr = {}
-      props.each do |attr|
-        case attr['Ctrl_Prop']
-        when 'PR Mode'            then pr['mode']            = attr['Value']
-        when 'PR Execution Delay' then pr['execution_delay'] = attr['Value'].to_i
-        when 'PR on SSD'          then pr['on_ssd']          = (attr['Value'] != 'Disabled')
-        when 'PR Next Start time' then pr['next_start_time'] = parse_schedule_time(attr['Value'])
-        end
-      end
-
-      @pr_info[id] = pr
+      pr = extract_patrol_read_properties(props)
+      @pr_info[id] = pr unless pr.empty?
     end
   end
 
@@ -175,16 +163,8 @@ class Megaraid
       props = controller.dig('Response Data', 'Controller Properties') || []
       next if props.empty?
 
-      cc = {}
-      props.each do |attr|
-        case attr['Ctrl_Prop']
-        when 'CC Operation Mode'  then cc['operation_mode']  = attr['Value']
-        when 'CC Execution Delay' then cc['execution_delay'] = attr['Value'].to_i
-        when 'CC Next Starttime'  then cc['next_start_time'] = parse_schedule_time(attr['Value'])
-        end
-      end
-
-      @cc_info[id] = cc
+      cc = extract_consistency_check_properties(props)
+      @cc_info[id] = cc unless cc.empty?
     end
   end
 
@@ -204,12 +184,10 @@ class Megaraid
       props.each do |attr|
         key = attr['Ctrl_Prop']
         val = attr['Value']
-        settings[key] = Integer(val, 10)
-      rescue ArgumentError
-        settings[key] = val
+        settings[key] = coerce_to_integer(val)
       end
 
-      @controller_settings_info[id] = settings
+      @controller_settings_info[id] = settings unless settings.empty?
     end
   end
 
@@ -224,45 +202,50 @@ class Megaraid
 
       # Key name varies between storcli versions: 'BBU_Info' (newer) vs 'BBU Info' (older)
       bbu_raw = controller.dig('Response Data', 'BBU_Info') ||
-                controller.dig('Response Data', 'BBU Info') ||
-                {}
+                controller.dig('Response Data', 'BBU Info')
+      next unless bbu_raw && !bbu_raw.empty?
 
-      next if bbu_raw.empty?
-
-      @bbu_info[id] =
-          {
-            'state'              => bbu_raw.fetch('State', 'Unknown'),
-            # 'Model' in newer storcli; 'Type' in older storcli
-            'type'               => bbu_raw.fetch('Model', nil) || bbu_raw.fetch('Type', 'BBU'),
-            'replacement_needed' => (bbu_raw.fetch('Battery Replacement required', 'No') == 'Yes'),
-            'learn_cycle_active' => (bbu_raw.fetch('Learn Cycle Requested', 'No') != 'No'),
-          }
-        end
+      @bbu_info[id] = {
+        'state'              => bbu_raw.fetch('State', 'Unknown'),
+        # 'Model' in newer storcli; 'Type' in older storcli
+        'type'               => bbu_raw.fetch('Model', nil) || bbu_raw.fetch('Type', 'BBU'),
+        'replacement_needed' => bbu_raw.fetch('Battery Replacement required', 'No') == 'Yes',
+        'learn_cycle_active' => bbu_raw.fetch('Learn Cycle Requested', 'No') != 'No',
+      }
     end
   end
 
   # Virtual disk / drive group assembly
 
   # Parses the compact 'Cache' token from the VD LIST entry into discrete
-  # policy symbols.
+  # policy symbols. Cache strings follow pattern: [R|NR][AWB|WB|WT][D|C]
+  # Examples: RWBD, NRWTD, RAWBC
   def parse_cache_string(cache)
+    return {} unless cache
+
     c = cache.to_s.upcase
 
-    write =
-      if c.include?('AWB') then 'awb'
-      elsif c.include?('WB') then 'wb'
-      elsif c.include?('WT') then 'wt'
-      end
+    # Order matters: AWB must be checked before WB
+    write = if c.include?('AWB')
+              'awb'
+            elsif c.include?('WB')
+              'wb'
+            elsif c.include?('WT')
+              'wt'
+            end
 
-    read =
-      if c.start_with?('NR') then 'nora'   # NR must be tested before R
-      elsif c.start_with?('R') then 'ra'
-      end
+    # NR must be tested before R to avoid false matches
+    read = if c.start_with?('NR')
+             'nora'
+           elsif c.start_with?('R')
+             'ra'
+           end
 
-    io =
-      if c.end_with?('D') then 'Direct'
-      elsif c.end_with?('C') then 'Cached'
-      end
+    io = if c.end_with?('D')
+           'Direct'
+         elsif c.end_with?('C')
+           'Cached'
+         end
 
     { write: write, read: read, io: io }.compact
   end
@@ -273,74 +256,11 @@ class Megaraid
     drive_groups = {}
 
     vd_list.each do |item|
-      # Newer storcli uses 'DG/VD' (e.g. "0/0"); older uses plain 'VD'.
-      # Normalise to (dg_id, vd_id) string pair in both cases.
-      if item.key?('DG/VD')
-        dg_id, vd_id = item['DG/VD'].split('/')
-      elsif item.key?('VD')
-        dg_id = '0'
-        vd_id = item['VD'].to_s
-      else
-        next
-      end
+      dg_id, vd_id = extract_vd_identifiers(item)
+      next unless dg_id && vd_id
 
       drive_groups[dg_id] ||= { 'virtual_disks' => {} }
-
-      vd_detail = exec_json(tool, "/c#{controller_id}/v#{vd_id} show all J nolog")
-      vd_props  = vd_detail
-                    &.fetch('Controllers', [])
-                    &.first
-                    &.dig('Response Data', "VD#{vd_id} Properties") || {}
-
-      cache = parse_cache_string(item['Cache'])
-
-      # Map short cache tokens to the verbose names storcli uses elsewhere
-      # for consistency when consumers compare policies across code paths.
-      write_policy =
-        case cache[:write]
-        when 'wb', 'awb' then 'WriteBack'
-        when 'wt'        then 'WriteThrough'
-        end
-
-      read_policy = (cache[:read] == 'ra') ? 'ReadAhead' : 'ReadAheadNone'
-
-      # Disk Cache Policy uses verbose strings in storcli output; normalise
-      # to short tokens for easier pattern matching in Puppet manifests.
-      disk_cache =
-        case vd_props.fetch('Disk Cache Policy', nil)
-        when "Disk's Default" then 'default'
-        when 'Enabled'        then 'on'
-        when 'Disabled'       then 'off'
-        else vd_props['Disk Cache Policy']
-        end
-
-      # Omit nil values; absent key is cleaner than nil in Facter output and
-      # lets Puppet manifests use simple truthiness checks.
-      properties = {
-        'stripe_size'               => vd_props.fetch('Strip Size', nil),
-        'span_depth'                => vd_props.fetch('Span Depth', nil),
-        'number_of_drives_per_span' => vd_props.fetch('Number of Drives Per Span', nil),
-        'current_write_policy'      => write_policy,
-        'current_read_policy'       => read_policy,
-        'io_policy'                 => cache[:io],
-        'disk_cache_policy'         => disk_cache,
-        'is_vd_boot_drive'          => vd_props.fetch('Is LD Ready for OS Requests', nil),
-        'encryption'                => vd_props.fetch('Encryption', nil),
-        'exposed_to_os'             => vd_props.fetch('Exposed to OS', nil),
-        'unmap_enabled'             => vd_props.fetch('Unmap Enabled', nil),
-        'data_protection'           => vd_props.fetch('Data Protection', nil),
-      }.compact
-
-      vd = {
-        'name'       => "/c#{controller_id}/v#{vd_id}",
-        'raid_level' => item.fetch('TYPE', nil),
-        'state'      => item.fetch('State', nil),
-        'size'       => item.fetch('Size', nil),
-        'os_drive_name' => item.fetch('OS Drive Name', nil),
-      }
-      vd['properties'] = properties unless properties.empty?
-
-      drive_groups[dg_id]['virtual_disks'][vd_id] = vd
+      drive_groups[dg_id]['virtual_disks'][vd_id] = build_virtual_disk(controller_id, vd_id, item, tool)
     end
 
     drive_groups
@@ -360,11 +280,155 @@ class Megaraid
 
     return { 'present' => false } if num_controllers.zero?
 
+    {
+      'present'               => true,
+      'storcli'               => storcli_tools.first, # backwards compat
+      'number_of_controllers' => num_controllers,
+      'controllers'           => build_controllers_hash,
+    }
+  end
+
+  private
+
+  # Returns list of perccli tool candidates
+  def perccli_candidates
+    %w[
+      perccli64
+      /opt/MegaRAID/perccli/perccli64
+      perccli
+      /opt/MegaRAID/perccli/perccli
+    ]
+  end
+
+  # Returns list of storcli tool candidates
+  def storcli_candidates
+    %w[
+      storcli64
+      /opt/MegaRAID/storcli/storcli64
+      storcli
+      /opt/MegaRAID/storcli/storcli
+    ]
+  end
+
+  # Extract patrol read properties from controller properties array
+  def extract_patrol_read_properties(props)
+    pr = {}
+    props.each do |attr|
+      case attr['Ctrl_Prop']
+      when 'PR Mode'            then pr['mode']            = attr['Value']
+      when 'PR Execution Delay' then pr['execution_delay'] = attr['Value'].to_i
+      when 'PR on SSD'          then pr['on_ssd']          = (attr['Value'] != 'Disabled')
+      when 'PR Next Start time' then pr['next_start_time'] = parse_schedule_time(attr['Value'])
+      end
+    end
+    pr
+  end
+
+  # Extract consistency check properties from controller properties array
+  def extract_consistency_check_properties(props)
+    cc = {}
+    props.each do |attr|
+      case attr['Ctrl_Prop']
+      when 'CC Operation Mode'  then cc['operation_mode']  = attr['Value']
+      when 'CC Execution Delay' then cc['execution_delay'] = attr['Value'].to_i
+      when 'CC Next Starttime'  then cc['next_start_time'] = parse_schedule_time(attr['Value'])
+      end
+    end
+    cc
+  end
+
+  # Attempts to convert a value to integer, returns original value if conversion fails
+  def coerce_to_integer(val)
+    Integer(val, 10)
+  rescue ArgumentError
+    val
+  end
+
+  # Extract drive group and virtual disk identifiers from VD list item
+  # Returns [dg_id, vd_id] or [nil, nil] if not found
+  def extract_vd_identifiers(item)
+    if item.key?('DG/VD')
+      # Newer storcli uses 'DG/VD' (e.g. "0/0")
+      item['DG/VD'].split('/')
+    elsif item.key?('VD')
+      # Older storcli uses plain 'VD'
+      ['0', item['VD'].to_s]
+    else
+      [nil, nil]
+    end
+  end
+
+  # Build a virtual disk hash from VD list item and detailed properties
+  def build_virtual_disk(controller_id, vd_id, item, tool)
+    vd_detail = exec_json(tool, "/c#{controller_id}/v#{vd_id} show all J nolog")
+    vd_props  = vd_detail
+                  &.fetch('Controllers', [])
+                  &.first
+                  &.dig('Response Data', "VD#{vd_id} Properties") || {}
+
+    cache = parse_cache_string(item['Cache'])
+
+    vd = {
+      'name'          => "/c#{controller_id}/v#{vd_id}",
+      'raid_level'    => item.fetch('TYPE', nil),
+      'state'         => item.fetch('State', nil),
+      'size'          => item.fetch('Size', nil),
+      'os_drive_name' => item.fetch('OS Drive Name', nil),
+    }
+
+    properties = build_vd_properties(vd_props, cache)
+    vd['properties'] = properties unless properties.empty?
+
+    vd
+  end
+
+  # Build virtual disk properties hash
+  def build_vd_properties(vd_props, cache)
+    {
+      'stripe_size'               => vd_props.fetch('Strip Size', nil),
+      'span_depth'                => vd_props.fetch('Span Depth', nil),
+      'number_of_drives_per_span' => vd_props.fetch('Number of Drives Per Span', nil),
+      'current_write_policy'      => map_write_policy(cache[:write]),
+      'current_read_policy'       => map_read_policy(cache[:read]),
+      'io_policy'                 => cache[:io],
+      'disk_cache_policy'         => normalize_disk_cache_policy(vd_props.fetch('Disk Cache Policy', nil)),
+      'is_vd_boot_drive'          => vd_props.fetch('Is LD Ready for OS Requests', nil),
+      'encryption'                => vd_props.fetch('Encryption', nil),
+      'exposed_to_os'             => vd_props.fetch('Exposed to OS', nil),
+      'unmap_enabled'             => vd_props.fetch('Unmap Enabled', nil),
+      'data_protection'           => vd_props.fetch('Data Protection', nil),
+    }.compact
+  end
+
+  # Map cache token to write policy name
+  def map_write_policy(token)
+    case token
+    when 'awb' then 'AlwaysWriteBack'
+    when 'wb'  then 'WriteBack'
+    when 'wt'  then 'WriteThrough'
+    end
+  end
+
+  # Map cache token to read policy name
+  def map_read_policy(token)
+    token == 'ra' ? 'ReadAhead' : 'ReadAheadNone'
+  end
+
+  # Normalize disk cache policy to short tokens
+  def normalize_disk_cache_policy(policy)
+    case policy
+    when "Disk's Default" then 'default'
+    when 'Enabled'        then 'on'
+    when 'Disabled'       then 'off'
+    else policy
+    end
+  end
+
+  # Build the controllers hash for the fact output
+  def build_controllers_hash
     controllers = {}
     @controller_info.each do |id, params|
       tool = params.fetch('_storcli_tool', storcli_tools.first)
-
-      # 'VD LIST' is absent on JBOD-only controllers; treat as empty.
       drive_groups = build_drive_groups(id, tool, params.fetch('VD LIST', []))
 
       controllers[id] = {
@@ -385,13 +449,7 @@ class Megaraid
         'consistency_check'    => @cc_info[id],
       }.compact
     end
-
-    {
-      'present'               => true,
-      'storcli'               => storcli_tools.first,  # backwards compat
-      'number_of_controllers' => num_controllers,
-      'controllers'           => controllers,
-    }
+    controllers
   end
 end
 
@@ -402,14 +460,15 @@ Facter.add(:megaraid) do
   setcode do
     # Guard against storcli hanging on degraded or failed hardware.
     # 60 s is generous for a heavily-loaded system with many VDs.
-    Timeout.timeout(60) do
+    Timeout.timeout(Megaraid::STORCLI_TIMEOUT) do
       Megaraid.new.all_facts
     end
   rescue Timeout::Error
-    Facter.warn('megaraid: fact collection timed out after 60 seconds')
+    Facter.warn("megaraid: fact collection timed out after #{Megaraid::STORCLI_TIMEOUT} seconds")
     { 'present' => false, 'error' => 'timeout' }
   rescue StandardError => e
     Facter.warn("megaraid: fact collection failed: #{e.message}")
     { 'present' => false, 'error' => e.message }
   end
 end
+
