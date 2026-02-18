@@ -27,10 +27,12 @@ class Megaraid
 
     storcli_locations =
       if is_dell
-        ['perccli64', '/opt/MegaRAID/perccli/perccli64',
+        ['perccli2', '/opt/MegaRAID/perccli/perccli2',
+         'perccli64', '/opt/MegaRAID/perccli/perccli64',
          'perccli',   '/opt/MegaRAID/perccli/perccli']
       else
-        ['storcli64', '/opt/MegaRAID/storcli/storcli64',
+        ['storcli2', '/opt/MegaRAID/storcli/storcli2',
+         'storcli64', '/opt/MegaRAID/storcli/storcli64',
          'storcli',   '/opt/MegaRAID/storcli/storcli']
       end
 
@@ -64,7 +66,7 @@ class Megaraid
 
     output = begin
                JSON.parse(raw)
-             rescue
+             rescue StandardError
                nil
              end
     return unless output.is_a?(Hash)
@@ -90,7 +92,7 @@ class Megaraid
 
     output = begin
                JSON.parse(raw)
-             rescue
+             rescue StandardError
                nil
              end
     return unless output.is_a?(Hash)
@@ -100,29 +102,27 @@ class Megaraid
       controller_properties = controller.dig('Response Data', 'Controller Properties') || {}
 
       if controller_properties.empty?
-        pr_properties['PR Mode'] = 'Un-supported'
-        pr_properties['PR Next Start time'] = 'Un-supported'
+        pr_properties['mode'] = 'Un-supported'
+        pr_properties['next_start_time'] = 'Un-supported'
       else
         controller_properties.each do |attribute|
           key = attribute['Ctrl_Prop']
           val = attribute['Value']
 
           case key
-          when 'PR Execution Delay',
-                 'PR iterations completed',
-                 'PR MaxConcurrentPd'
-            pr_properties[key] = val.to_i
+          when 'PR Mode'
+            pr_properties['mode'] = val
+          when 'PR Execution Delay'
+            pr_properties['execution_delay'] = val.to_i
           when 'PR on SSD'
-            pr_properties[key] = (val != 'Disabled')
+            pr_properties['on_ssd'] = (val != 'Disabled')
           when 'PR Next Start time'
             begin
               t = Time.strptime(val, '%m/%d/%Y, %H:%M:%S')
-              pr_properties[key] = t.strftime('%A at %H:%M:%S')
-            rescue
-              pr_properties[key] = val
+              pr_properties['next_start_time'] = t.strftime('%A at %H:%M:%S')
+            rescue StandardError
+              pr_properties['next_start_time'] = val
             end
-          else
-            pr_properties[key] = val
           end
         end
       end
@@ -144,7 +144,7 @@ class Megaraid
 
     output = begin
                JSON.parse(raw)
-             rescue
+             rescue StandardError
                nil
              end
     return unless output.is_a?(Hash)
@@ -155,27 +155,25 @@ class Megaraid
         controller.dig('Response Data', 'Controller Properties') || {}
 
       if controller_properties.empty?
-        cc_properties['CC Operation Mode'] = 'Un-supported'
-        cc_properties['CC Next Starttime'] = 'Un-supported'
+        cc_properties['operation_mode'] = 'Un-supported'
+        cc_properties['next_start_time'] = 'Un-supported'
       else
         controller_properties.each do |attribute|
           key = attribute['Ctrl_Prop']
           val = attribute['Value']
 
           case key
-          when 'CC Execution Delay',
-                 'CC Number of iterations',
-                 'CC Number of VD completed'
-            cc_properties[key] = val.to_i
+          when 'CC Operation Mode'
+            cc_properties['operation_mode'] = val
+          when 'CC Execution Delay'
+            cc_properties['execution_delay'] = val.to_i
           when 'CC Next Starttime'
             begin
               t = Time.strptime(val, '%m/%d/%Y, %H:%M:%S')
-              cc_properties[key] = t.strftime('%A at %H:%M:%S')
-            rescue
-              cc_properties[key] = val
+              cc_properties['next_start_time'] = t.strftime('%A at %H:%M:%S')
+            rescue StandardError
+              cc_properties['next_start_time'] = val
             end
-          else
-            cc_properties[key] = val
           end
         end
       end
@@ -197,10 +195,18 @@ class Megaraid
     @controller_info.each do |controller, parameters|
       vd = {}
 
-      parameters.fetch('VD LIST', []).each do |item|
-        next unless item.key?('DG/VD')
+      # Handle VD LIST - may be null for JBOD-only controllers
+      vd_list = parameters.fetch('VD LIST', [])
+      vd_list&.each do |item|
+        # Support both 'DG/VD' (newer) and 'VD' (older) keys
+        vd_id = if item.key?('DG/VD')
+                  item['DG/VD'].split('/')[1]
+                elsif item.key?('VD')
+                  item['VD'].to_s
+                else
+                  next
+                end
 
-        vd_id = item['DG/VD'].split('/')[1]
         vd[vd_id] = {}
 
         raw = Facter::Util::Resolution.exec(
@@ -210,7 +216,7 @@ class Megaraid
 
         vd_json = begin
                     JSON.parse(raw)
-                  rescue
+                  rescue StandardError
                     nil
                   end
         next unless vd_json
@@ -219,9 +225,10 @@ class Megaraid
           vd_json.fetch('Controllers', [])[0]
                  &.dig('Response Data', "VD#{vd_id} Properties") || {}
 
-        vd[vd_id]['Type']       = item.fetch('TYPE', nil)
-        vd[vd_id]['State']      = item.fetch('State', nil)
-        vd[vd_id]['Strip Size'] = vd_output.fetch('Strip Size', nil)
+        vd[vd_id]['type']       = item.fetch('TYPE', nil)
+        vd[vd_id]['state']      = item.fetch('State', nil)
+        vd[vd_id]['strip_size'] = vd_output.fetch('Strip Size', nil)
+        vd[vd_id]['size']       = item.fetch('Size', nil)
 
         cache = item['Cache'].to_s.upcase
 
@@ -236,22 +243,22 @@ class Megaraid
             'unknown'
           end
 
-        vd[vd_id]['Write Cache'] = write_cache
+        vd[vd_id]['write_cache'] = write_cache
 
         if cache.start_with?('R')
-          vd[vd_id]['Read Cache'] = 'ra'
+          vd[vd_id]['read_cache'] = 'ra'
         elsif cache.start_with?('NR')
-          vd[vd_id]['Read Cache'] = 'nora'
+          vd[vd_id]['read_cache'] = 'nora'
         end
 
         if cache.end_with?('D')
-          vd[vd_id]['IO Policy'] = 'direct'
+          vd[vd_id]['io_policy'] = 'direct'
         elsif cache.end_with?('C')
-          vd[vd_id]['IO Policy'] = 'cached'
+          vd[vd_id]['io_policy'] = 'cached'
         end
 
         pdc = vd_output.fetch('Disk Cache Policy', 'unknown')
-        vd[vd_id]['Physical Drive Cache'] =
+        vd[vd_id]['physical_drive_cache'] =
           case pdc
           when "Disk's Default" then 'default'
           when 'Enabled'        then 'on'
@@ -259,8 +266,8 @@ class Megaraid
           else pdc
           end
 
-        vd[vd_id]['Name']       = item.fetch('Name', nil)
-        vd[vd_id]['Encryption'] = vd_output.fetch('Encryption', nil)
+        vd[vd_id]['name']       = item.fetch('Name', nil)
+        vd[vd_id]['encryption'] = vd_output.fetch('Encryption', nil)
       end
 
       ctrls[controller] = {
@@ -270,6 +277,11 @@ class Megaraid
         'fw_package_build' => parameters.fetch('FW Package Build', nil),
         'fw_version'       => parameters.fetch('FW Version', nil),
         'bios_version'     => parameters.fetch('BIOS Version', nil),
+
+        'driver_name'           => parameters.fetch('Driver Name', nil),
+        'device_interface'      => parameters.fetch('Device Interface', nil),
+        'drive_groups'          => parameters.fetch('Drive Groups', nil),
+        'physical_drive_count'  => parameters.fetch('Physical Drives', nil),
 
         'virtual_drives'   => vd,
         'patrol_read'      => @pr_info[controller],
@@ -285,7 +297,7 @@ class Megaraid
     all_info
 
     {
-      'present?'              => present?,
+      'present'               => present?,
       'storcli'               => storcli,
       'number_of_controllers' => num_controllers,
       'controllers'           => controllers_info,
