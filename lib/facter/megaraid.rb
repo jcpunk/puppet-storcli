@@ -509,13 +509,14 @@ class Megaraid
         'drive_groups_count'    => parameters.fetch('Drive Groups', nil),
         'physical_drive_count'  => parameters.fetch('Physical Drives', nil),
 
+        'storcli_tool'          => parameters.fetch('_storcli_tool', nil),
+
         'drive_groups'          => drive_groups,
         'controller_settings'   => @controller_settings_info[controller],
         'bbu_info'              => @bbu_info[controller],
         'patrol_read'           => @pr_info[controller],
         'consistency_check'     => @cc_info[controller],
       }
-      # Note: _storcli_tool and _storcli_tool_info are intentionally not included in output (internal use only)
     end
 
     ctrls

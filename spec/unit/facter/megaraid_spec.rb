@@ -281,11 +281,15 @@ describe :megaraid, type: :fact do
           expect(ctrl).to have_key('device_interface')
           expect(ctrl).to have_key('drive_groups_count')
           expect(ctrl).to have_key('physical_drive_count')
+          expect(ctrl).to have_key('storcli_tool')
           expect(ctrl).to have_key('drive_groups')
           expect(ctrl).to have_key('controller_settings')
           expect(ctrl).to have_key('bbu_info')
           expect(ctrl).to have_key('patrol_read')
           expect(ctrl).to have_key('consistency_check')
+
+          # Verify storcli_tool is a full path
+          expect(ctrl['storcli_tool']).to match(%r{^/})
 
           # Verify patrol_read structure
           pr = ctrl['patrol_read']
