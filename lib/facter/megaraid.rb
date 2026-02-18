@@ -50,12 +50,6 @@ class Megaraid
     @storcli_tools
   end
 
-  # Return first available storcli tool for backward compatibility
-  def storcli
-    tools = storcli_tools
-    tools.empty? ? nil : tools.first
-  end
-
   # Function to call all get methods
   def all_info
     Dir.chdir('/tmp') do
@@ -224,7 +218,7 @@ class Megaraid
       vd = {}
 
       # Get the tool that found this controller
-      tool = parameters.fetch('_storcli_tool', storcli)
+      tool = parameters.fetch('_storcli_tool', storcli_tools.first)
 
       # Handle VD LIST - may be null for JBOD-only controllers
       vd_list = parameters.fetch('VD LIST', [])
@@ -325,12 +319,10 @@ class Megaraid
   end
 
   def all_facts
-    storcli
     all_info
 
     {
       'present'               => present?,
-      'storcli'               => storcli,
       'storcli_tools'         => storcli_tools,
       'number_of_controllers' => num_controllers,
       'controllers'           => controllers_info,

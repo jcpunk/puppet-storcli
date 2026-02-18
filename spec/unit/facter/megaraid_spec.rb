@@ -25,7 +25,6 @@ describe :megaraid, type: :fact do
 
     it do
       expect(fact.value['present']).to eq(false)
-      expect(fact.value['storcli']).to eq(nil)
       expect(fact.value['storcli_tools']).to eq([])
       expect(fact.value['number_of_controllers']).to eq(0)
       expect(fact.value['controllers']).to eq({})
@@ -53,7 +52,6 @@ describe :megaraid, type: :fact do
 
     it do
       expect(fact.value['present']).to eq(true)
-      expect(fact.value['storcli']).to eq(nil)
       expect(fact.value['storcli_tools']).to eq([])
       expect(fact.value['number_of_controllers']).to eq(0)
       expect(fact.value['controllers']).to eq({})
@@ -82,7 +80,6 @@ describe :megaraid, type: :fact do
 
     it do
       expect(fact.value['present']).to eq(true)
-      expect(fact.value['storcli']).to eq('/example/path')
       expect(fact.value['storcli_tools']).to eq(['/example/path'])
       expect(fact.value['number_of_controllers']).to eq(0)
       expect(fact.value['controllers'].count).to eq(0)
@@ -174,7 +171,6 @@ describe :megaraid, type: :fact do
 
       it 'has correct top-level keys' do
         expect(fact.value['present']).to eq(true)
-        expect(fact.value['storcli']).to eq('/example/path')
         expect(fact.value['storcli_tools']).to eq(['/example/path'])
         expect(fact.value['number_of_controllers']).to eq(controller_ids.length)
         expect(fact.value['controllers']).to be_a(Hash)
