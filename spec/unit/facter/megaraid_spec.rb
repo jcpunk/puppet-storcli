@@ -3,15 +3,7 @@
 require 'rspec'
 require 'json'
 require 'time'
-
-# Minimal setup for Facter tests
-begin
-  require 'facter'
-rescue LoadError
-  # If facter gem not available, use bundled version
-  $LOAD_PATH.unshift(File.expand_path('../../../lib', __dir__))
-  require 'facter'
-end
+require 'facter'
 
 require_relative '../../../lib/facter/megaraid'
 
@@ -486,8 +478,32 @@ describe :megaraid, type: :fact do
                     end
                     
                     # Verify write and read policies are derived from Cache string
-                    expect(props['current_write_policy']).to be_a(String).or be_nil
-                    expect(props['current_read_policy']).to be_a(String).or be_nil
+                    # Cache format is like "RWBD", "NRWTD", "RFWBC", etc.
+                    # Write: R=ReadAhead/NR=NoReadAhead, W=WriteBack/WT=WriteThrough
+                    # Read/IO: D=Direct, C=Cached
+                    cache_str = vd_item['Cache']
+                    if cache_str
+                      # Validate write policy
+                      if cache_str.include?('WB') || cache_str.include?('AWB')
+                        expect(props['current_write_policy']).to eq('WriteBack')
+                      elsif cache_str.include?('WT')
+                        expect(props['current_write_policy']).to eq('WriteThrough')
+                      end
+                      
+                      # Validate read policy
+                      if cache_str.start_with?('NR')
+                        expect(props['current_read_policy']).to eq('ReadAheadNone')
+                      elsif cache_str.start_with?('R')
+                        expect(props['current_read_policy']).to eq('ReadAhead')
+                      end
+                      
+                      # Validate IO policy
+                      if cache_str.end_with?('D')
+                        expect(props['io_policy']).to eq('Direct')
+                      elsif cache_str.end_with?('C')
+                        expect(props['io_policy']).to eq('Cached')
+                      end
+                    end
                   end
                 end
               end
