@@ -18,6 +18,7 @@ describe :megaraid, type: :fact do
       allow(Dir).to receive(:exist?).and_return(false)
       expect(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(false)
       expect(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(false)
+      expect(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpi3mr').and_return(false)
 
       expect(Facter::Util::Resolution).not_to receive(:which)
       expect(Facter::Util::Resolution).not_to receive(:exec)
@@ -37,6 +38,7 @@ describe :megaraid, type: :fact do
     before :each do
       allow(Dir).to receive(:exist?).and_return(true)
       allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(true)
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpi3mr').and_return(false)
       expect(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
 
       # Mock DMI for non-Dell
@@ -66,6 +68,7 @@ describe :megaraid, type: :fact do
     before :each do
       allow(Dir).to receive(:exist?).and_return(true)
       allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(true)
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpi3mr').and_return(false)
       allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
 
       # Mock DMI for non-Dell
@@ -95,6 +98,34 @@ describe :megaraid, type: :fact do
     end
   end
 
+  context 'module present with mpi3mr driver' do
+    before :each do
+      allow(Dir).to receive(:exist?).and_return(false)
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(false)
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(false)
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpi3mr').and_return(true)
+
+      # Mock DMI for non-Dell
+      allow(Facter).to receive(:value).with(:dmi).and_return({ 'manufacturer' => 'Supermicro' })
+
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli2').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli2').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli64').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli').and_return(nil)
+    end
+
+    it 'detects mpi3mr driver as present' do
+      expect(fact.value['present']).to eq(true)
+      expect(fact.value['storcli']).to eq(nil)
+      expect(fact.value['storcli_tools']).to eq([])
+      expect(fact.value['tool_info']).to eq([])
+      expect(fact.value['number_of_controllers']).to eq(0)
+      expect(fact.value['controllers']).to eq({})
+    end
+  end
+
   # Note: The code now supports multiple storcli tools (e.g., both storcli and storcli2)
   # on the same system. Each tool is queried and results are combined. This is tested
   # implicitly by the mocking infrastructure which allows multiple tools to be present.
@@ -103,6 +134,7 @@ describe :megaraid, type: :fact do
     before :each do
       allow(Dir).to receive(:exist?).and_return(true)
       allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(true)
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpi3mr').and_return(false)
       allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
       allow(Facter).to receive(:value).with(:dmi).and_return({ 'manufacturer' => 'Supermicro' })
       
@@ -170,6 +202,7 @@ describe :megaraid, type: :fact do
       before :each do
         allow(Dir).to receive(:exist?).and_return(true)
         allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(true)
+        allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpi3mr').and_return(false)
         allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
 
         # Mock DMI appropriately

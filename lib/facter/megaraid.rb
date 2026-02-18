@@ -13,7 +13,9 @@ require 'timeout'
 class Megaraid
   # Is a megaraid driver present?
   def present?
-    Dir.exist?('/sys/bus/pci/drivers/megaraid_sas') || Dir.exist?('/sys/bus/pci/drivers/mpt3sas')
+    Dir.exist?('/sys/bus/pci/drivers/megaraid_sas') ||
+      Dir.exist?('/sys/bus/pci/drivers/mpt3sas') ||
+      Dir.exist?('/sys/bus/pci/drivers/mpi3mr')
   end
 
   # Find all available storcli/perccli applications
