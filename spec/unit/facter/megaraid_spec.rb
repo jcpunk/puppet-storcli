@@ -96,6 +96,48 @@ describe :megaraid, type: :fact do
   # on the same system. Each tool is queried and results are combined. This is tested
   # implicitly by the mocking infrastructure which allows multiple tools to be present.
 
+  context 'timeout protection' do
+    before :each do
+      allow(Dir).to receive(:exist?).and_return(true)
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(true)
+      allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
+      allow(Facter).to receive(:value).with(:dmi).and_return({ 'manufacturer' => 'Supermicro' })
+      
+      # Mock which to find a tool
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli2').and_return('/example/path')
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli2').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli64').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('storcli').and_return(nil)
+      allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli').and_return(nil)
+    end
+
+    it 'times out and returns safe defaults when fact collection hangs' do
+      # Mock a hanging exec call
+      allow(Facter::Util::Resolution).to receive(:exec).with('/example/path show J nolog') do
+        sleep 65 # Longer than 60 second timeout
+      end
+
+      # Should timeout and return error state
+      result = fact.value
+      expect(result).to be_a(Hash)
+      expect(result['error']).to match(/timed out/i)
+      expect(result['present']).to eq(false)
+      expect(result['number_of_controllers']).to eq(0)
+    end
+
+    it 'handles exceptions gracefully' do
+      # Mock an exception
+      allow(Megaraid).to receive(:new).and_raise(StandardError, 'Test error')
+
+      result = fact.value
+      expect(result).to be_a(Hash)
+      expect(result['error']).to eq('Test error')
+      expect(result['present']).to eq(false)
+      expect(result['number_of_controllers']).to eq(0)
+    end
+  end
+
   # Dynamically discover and test all fixture directories
   FIXTURE_BASE_PATH = 'spec/fixtures'
   

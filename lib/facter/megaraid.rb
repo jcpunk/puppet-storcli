@@ -7,6 +7,7 @@
 #
 require 'json'
 require 'time'
+require 'timeout'
 
 # Main Megaraid class
 class Megaraid
@@ -403,6 +404,30 @@ Facter.add(:megaraid) do
   confine kernel: 'Linux'
 
   setcode do
-    Megaraid.new.all_facts
+    # Timeout to prevent fact from hanging indefinitely on slow/hung storcli commands
+    # This protects Puppet runs from blocking on hardware issues
+    Timeout.timeout(60) do
+      Megaraid.new.all_facts
+    end
+  rescue Timeout::Error
+    Facter.warn('megaraid fact collection timed out after 60 seconds')
+    {
+      'present' => false,
+      'storcli_tools' => [],
+      'tool_info' => [],
+      'number_of_controllers' => 0,
+      'controllers' => {},
+      'error' => 'Fact collection timed out'
+    }
+  rescue StandardError => e
+    Facter.warn("megaraid fact collection failed: #{e.message}")
+    {
+      'present' => false,
+      'storcli_tools' => [],
+      'tool_info' => [],
+      'number_of_controllers' => 0,
+      'controllers' => {},
+      'error' => e.message
+    }
   end
 end
