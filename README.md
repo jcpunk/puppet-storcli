@@ -148,6 +148,8 @@ StorCli SAS Customization Utility Ver 007.2508.0000.0000 Feb 27, 2023
 
 Older versions may work, but may not...
 
+This module purposefully does not manage `storcli`/`perccli2` as there is no obvious way to reconcile the controller numbers. Each one starts counting from zero.
+
 ## Development
 
 Contributions are welcome through pull requests. I will only accept PRs with tests covering the parts of the code you touched.
