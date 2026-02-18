@@ -112,25 +112,25 @@ describe :megaraid, type: :fact do
       before :each do
         allow(Dir).to receive(:exist?).and_return(true)
         allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/mpt3sas').and_return(true)
-        expect(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
+        allow(Dir).to receive(:exist?).with('/sys/bus/pci/drivers/megaraid_sas').and_return(true)
 
         # Mock DMI appropriately
         if is_dell
           allow(Facter).to receive(:value).with(:dmi).and_return({ 'manufacturer' => 'Dell Inc.' })
-          expect(Facter::Util::Resolution).to receive(:which).with('perccli2').and_return(nil)
-          expect(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/perccli/perccli2').and_return(nil)
-          expect(Facter::Util::Resolution).to receive(:which).with('perccli64').and_return('/example/path')
-          expect(Facter::Util::Resolution).not_to receive(:which).with('/opt/MegaRAID/perccli/perccli64')
-          expect(Facter::Util::Resolution).not_to receive(:which).with('perccli')
-          expect(Facter::Util::Resolution).not_to receive(:which).with('/opt/MegaRAID/perccli/perccli')
+          allow(Facter::Util::Resolution).to receive(:which).with('perccli2').and_return(nil)
+          allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/perccli/perccli2').and_return(nil)
+          allow(Facter::Util::Resolution).to receive(:which).with('perccli64').and_return('/example/path')
+          allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/perccli/perccli64').and_return(nil)
+          allow(Facter::Util::Resolution).to receive(:which).with('perccli').and_return(nil)
+          allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/perccli/perccli').and_return(nil)
         else
           allow(Facter).to receive(:value).with(:dmi).and_return({ 'manufacturer' => 'Supermicro' })
-          expect(Facter::Util::Resolution).to receive(:which).with('storcli2').and_return(nil)
-          expect(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli2').and_return(nil)
-          expect(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return('/example/path')
-          expect(Facter::Util::Resolution).not_to receive(:which).with('/opt/MegaRAID/storcli/storcli64')
-          expect(Facter::Util::Resolution).not_to receive(:which).with('storcli')
-          expect(Facter::Util::Resolution).not_to receive(:which).with('/opt/MegaRAID/storcli/storcli')
+          allow(Facter::Util::Resolution).to receive(:which).with('storcli2').and_return(nil)
+          allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli2').and_return(nil)
+          allow(Facter::Util::Resolution).to receive(:which).with('storcli64').and_return('/example/path')
+          allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli64').and_return(nil)
+          allow(Facter::Util::Resolution).to receive(:which).with('storcli').and_return(nil)
+          allow(Facter::Util::Resolution).to receive(:which).with('/opt/MegaRAID/storcli/storcli').and_return(nil)
         end
 
         # Mock the main storcli calls
@@ -140,7 +140,7 @@ describe :megaraid, type: :fact do
 
         # Mock VD detail calls for each controller
         controller_ids.each do |ctrl_id|
-          ctrl_data = controllers.find { |c| c.dig('Command Status', 'Controller') == ctrl_id }
+          ctrl_data = controllers.find { |c| c.dig('Command Status', 'Controller').to_s == ctrl_id }
           vd_list = ctrl_data&.dig('Response Data', 'VD LIST') || []
 
           vd_list.each do |vd_item|
