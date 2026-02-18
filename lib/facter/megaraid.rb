@@ -197,7 +197,7 @@ class Megaraid
 
       # Handle VD LIST - may be null for JBOD-only controllers
       vd_list = parameters.fetch('VD LIST', [])
-      vd_list&.each do |item|
+      vd_list.each do |item|
         # Support both 'DG/VD' (newer) and 'VD' (older) keys
         vd_id = if item.key?('DG/VD')
                   item['DG/VD'].split('/')[1]

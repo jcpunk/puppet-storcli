@@ -88,7 +88,9 @@ describe :megaraid, type: :fact do
   end
 
   # Dynamically discover and test all fixture directories
-  Dir.glob('spec/fixtures/*/storcli_call_show.json').sort.each do |fixture_file|
+  FIXTURE_BASE_PATH = 'spec/fixtures'
+  
+  Dir.glob(File.join(FIXTURE_BASE_PATH, '*/storcli_call_show.json')).sort.each do |fixture_file|
     fixture_dir = File.dirname(fixture_file)
     card_name = File.basename(fixture_dir)
 
@@ -196,10 +198,10 @@ describe :megaraid, type: :fact do
           expect(pr).to be_a(Hash)
           expect(pr).to have_key('mode')
           expect(pr).to have_key('next_start_time')
-          # If not Un-supported, should have additional keys
-          if pr['mode'] != 'Un-supported'
-            expect(pr).to have_key('execution_delay') if pr.key?('execution_delay')
-            expect(pr).to have_key('on_ssd') if pr.key?('on_ssd')
+          # If not Un-supported, should have execution_delay and on_ssd
+          unless pr['mode'] == 'Un-supported'
+            expect(pr).to have_key('execution_delay')
+            expect(pr).to have_key('on_ssd')
           end
 
           # Verify consistency_check structure
@@ -207,9 +209,9 @@ describe :megaraid, type: :fact do
           expect(cc).to be_a(Hash)
           expect(cc).to have_key('operation_mode')
           expect(cc).to have_key('next_start_time')
-          # If not Un-supported, should have additional keys
-          if cc['operation_mode'] != 'Un-supported'
-            expect(cc).to have_key('execution_delay') if cc.key?('execution_delay')
+          # If not Un-supported, should have execution_delay
+          unless cc['operation_mode'] == 'Un-supported'
+            expect(cc).to have_key('execution_delay')
           end
 
           # Verify virtual_drives structure
