@@ -1,109 +1,102 @@
-# storcli
+# @summary Manage LSI MegaRAID / Dell PERC RAID controllers
 #
-# Main class, include all other classes.
+# Installs the storcli/perccli package and configures detected controllers.
+#
+# **Simple usage** — apply sensible defaults to every controller:
+#
+#     include storcli
+#
+# **Per-controller configuration** — disable the automatic sweep and
+# declare defined types via Hiera or native Puppet:
+#
+#     class { 'storcli':
+#       configure_settings => false,
+#       controllers        => {
+#         'c0' => { controller => 0, ncq => true,  perfmode => 0 },
+#         'c1' => { controller => 1, ncq => false, perfmode => 1 },
+#       },
+#     }
 #
 # @param package_manage
-#   Whether to manage the storcli package. Default value: value of megaraid['present?'].
+#   Whether to manage the storcli package.
+#   Default: value of storcli fact `present` key.
 #
 # @param package_name
-#   Specifies the storcli package to manage. Default value: ['storcli'].
+#   Specifies the storcli package to manage.
 #
 # @param package_ensure
-#   Whether to install the storcli package, and what version to install. Values: 'present', 'latest', or a specific version number.
-#   Default value: 'present'.
+#   Package ensure value: 'present', 'latest', or a specific version.
 #
 # @param link_storcli_to
-#   The official package puts the binary into /opt/MegaRAID/storcli which isn't usually in `$PATH`.
-#   This module will put a link into another location so the binary is easily found.
-#   Default value: /usr/local/sbin
+#   The official package often puts the binary into /opt/MegaRAID/storcli
+#   which is not usually in `$PATH`.  This parameter creates a symlink so
+#   the binary is found automatically.
 #
 # @param configure_settings
-#   Should this class be able to enforce configuration settings on the controllers?
-#   If you've got multiple controllers which should have different configs, you'll want to set this to false.
-#   Default value: true
+#   Master switch.  When true the module applies every controller_*
+#   parameter uniformly to all detected controllers.  Set to false when
+#   you need per-controller control and use the Hash parameters or
+#   the defined types directly.
 #
 # @param controller_manage_rebuild
-#   Should this class manage how the controller automatically rebuilds arrays
-#   Default value: true
-#
+#   Manage rebuild settings (autorebuild and rebuildrate).
 # @param controller_autorebuild
-#   Should this controller automatically rebuild arrays
-#   Default value: true
-#
+#   Enable automatic array rebuilds.
 # @param controller_rebuildrate
-#   Percentage of IO to dedicate to rebuilding an array
-#   Default value: 60
+#   Percentage of IO dedicated to rebuilds (0-100).
 #
 # @param sync_time_to_controllers
-#   Should controller clock be synced with the system clock?
-#   Default value: true
-#
+#   Sync controller clocks with the system clock.
 # @param controller_use_utc
-#   Should controller clock use UTC?
-#   Default value: true
+#   Use UTC for controller clocks (only relevant when sync_time is true).
+# @param controller_time_tolerance
+#   Seconds of drift allowed before a time sync is triggered.
 #
 # @param controller_perfmode
-#   Prioritize IOPS(0) or low latency(1)
-#   Set as an integer should new modes be added
-#   Default value: 0
-#
+#   Performance mode (0 = IOPS priority, higher values favour low latency).
 # @param controller_ncq
-#   Should Native Command Queue be enabled?
-#   Default value: true
-#
+#   Enable Native Command Queue.
 # @param controller_cacheflushinterval
-#   Time in seconds between cache flushes
-#   Default value: 4
-#
+#   Seconds between cache flushes.
 # @param controller_bootwithpinnedcache
-#   Continue booting with data stuck in cache?
-#   Default value: false
+#   Continue booting with data stuck in cache.
 #
 # @param controller_manage_alarm
-#   Should this class manage the alarm on the controller
-#   Set to false if storcli cannot manage the alarm on a particular controller
-#   Default value: true
-#
+#   Manage the alarm setting.  Set to false when the controller
+#   does not support alarm management.
 # @param controller_alarm
-#   Sound alarm when a disk is bad?
-#   Datacenters with lots of hosts and noise may want to disable this.
-#   Default value: true
-#
+#   Enable audible alarm.
 # @param controller_smartpollinterval
-#   Time in seconds between polling drive SMART errors (0-65535)
-#   Default value: 60
+#   Seconds between SMART error polls (0-65535).
 #
 # @param controller_patrolread_mode
-#   Run patrolread either, auto, manual, or off
-#   Default value: auto
-#
+#   Patrol read mode: 'auto', 'manual', or 'off'.
 # @param controller_patrolread_delay
-#   Set the patrolread delay to this many hours
-#   Default value: 336
-#
+#   Hours between automatic patrol reads.
 # @param controller_patrolread_rate
-#   Set the patrolread IO percentage
-#   Default value: 30
-#
+#   Percentage of IO for patrol reads (0-100).
 # @param controller_patrolread_includessds
-#   Should we patrol SSD devices
-#   Default value: false
-#
+#   Include SSDs in patrol reads.
 # @param controller_patrolread_uncfgareas
-#   Should we patrol unconfigured areas
-#   Default value: false
+#   Patrol unconfigured areas.
 #
 # @param controller_consistencycheck_mode
-#   One of off, seq, conc
-#   Default value: conc
-#
+#   Consistency check mode: 'off', 'seq', or 'conc'.
 # @param controller_consistencycheck_delay
-#   Set the consistencycheck delay to this many hours
-#   Default value: 672
-#
+#   Hours between consistency check runs.
 # @param controller_consistencycheck_rate
-#   Set the consistencycheck IO percentage
-#   Default value: 30
+#   Percentage of IO for consistency checks (0-100).
+#
+# @param controllers
+#   Hash of `storcli::controller` resources to create.
+#   Keys are resource titles; values are parameter hashes.
+#   Useful for per-controller configuration via Hiera.
+#
+# @param patrolreads
+#   Hash of `storcli::patrolread` resources to create.
+#
+# @param consistencychecks
+#   Hash of `storcli::consistencycheck` resources to create.
 #
 class storcli (
   # Hiera can convert facts to strings, but we really want a bool
@@ -118,6 +111,7 @@ class storcli (
   Integer[0, 100] $controller_rebuildrate,
   Boolean         $sync_time_to_controllers,
   Boolean         $controller_use_utc,
+  Integer[0]      $controller_time_tolerance,
   Integer[0]      $controller_perfmode,
   Boolean         $controller_ncq,
   Integer[1]      $controller_cacheflushinterval,
@@ -133,9 +127,34 @@ class storcli (
   Enum['off', 'seq', 'conc']    $controller_consistencycheck_mode,
   Integer[0]                    $controller_consistencycheck_delay,
   Integer[0, 100]               $controller_consistencycheck_rate,
+  Hash                          $controllers       = {},
+  Hash                          $patrolreads       = {},
+  Hash                          $consistencychecks = {},
 ) {
   contain storcli::install
   contain storcli::configure
 
-  Class['storcli::install'] -> Class['storcli::configure']
+  # Ensure install completes before any controller configuration
+  Class['storcli::install'] -> Storcli::Controller <| |>
+  Class['storcli::install'] -> Storcli::Patrolread <| |>
+  Class['storcli::install'] -> Storcli::Consistencycheck <| |>
+
+  # Create defined type resources from Hiera hashes.
+  # Use this when configure_settings is false and you need
+  # per-controller control.
+  $controllers.each |$_name, $_params| {
+    storcli::controller { $_name:
+      * => $_params,
+    }
+  }
+  $patrolreads.each |$_name, $_params| {
+    storcli::patrolread { $_name:
+      * => $_params,
+    }
+  }
+  $consistencychecks.each |$_name, $_params| {
+    storcli::consistencycheck { $_name:
+      * => $_params,
+    }
+  }
 }

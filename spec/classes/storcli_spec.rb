@@ -4,7 +4,16 @@ describe 'storcli' do
   on_supported_os.each do |os, os_facts|
     context "on #{os}" do
       context 'with card detected' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => '/usr/local/sbin/storcli64', 'controllers' => {} } }) }
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => '/usr/local/sbin/storcli64',
+                             'number_of_controllers' => 0,
+                             'controllers' => {},
+                           },
+                         })
+        end
 
         it { is_expected.to compile }
 
@@ -45,7 +54,16 @@ describe 'storcli' do
       end
 
       context 'with card detected, non-default link target' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => '/non/default/storcli', 'controllers' => {} } }) }
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => '/non/default/storcli',
+                             'number_of_controllers' => 0,
+                             'controllers' => {},
+                           },
+                         })
+        end
 
         it { is_expected.to compile }
 
@@ -65,7 +83,13 @@ describe 'storcli' do
       end
 
       context 'with card not detected' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => false, 'controllers' => {} } }) }
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => false,
+                           },
+                         })
+        end
 
         it { is_expected.to compile }
 
@@ -80,6 +104,89 @@ describe 'storcli' do
             )
           }
         end
+      end
+
+      context 'with hiera hash for controllers' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => '/usr/local/sbin/storcli64',
+                             'number_of_controllers' => 1,
+                             'controllers' => { 0 => {} },
+                           },
+                         })
+        end
+        let(:params) do
+          {
+            configure_settings: false,
+            controllers: {
+              'my_c0' => {
+                'controller' => 0,
+                'ncq' => true,
+              },
+            },
+          }
+        end
+
+        it { is_expected.to compile }
+        it { is_expected.to contain_storcli__controller('my_c0').with(controller: 0, ncq: true) }
+      end
+
+      context 'with hiera hash for patrolreads' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => '/usr/local/sbin/storcli64',
+                             'number_of_controllers' => 1,
+                             'controllers' => { 0 => {} },
+                           },
+                         })
+        end
+        let(:params) do
+          {
+            configure_settings: false,
+            patrolreads: {
+              'my_pr' => {
+                'controller' => 'all',
+                'mode' => 'auto',
+                'rate' => 30,
+              },
+            },
+          }
+        end
+
+        it { is_expected.to compile }
+        it { is_expected.to contain_storcli__patrolread('my_pr').with(controller: 'all', mode: 'auto', rate: 30) }
+      end
+
+      context 'with hiera hash for consistencychecks' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => '/usr/local/sbin/storcli64',
+                             'number_of_controllers' => 1,
+                             'controllers' => { 0 => {} },
+                           },
+                         })
+        end
+        let(:params) do
+          {
+            configure_settings: false,
+            consistencychecks: {
+              'my_cc' => {
+                'controller' => 'all',
+                'mode' => 'conc',
+                'delay' => 672,
+              },
+            },
+          }
+        end
+
+        it { is_expected.to compile }
+        it { is_expected.to contain_storcli__consistencycheck('my_cc').with(controller: 'all', mode: 'conc', delay: 672) }
       end
     end
   end

@@ -5,15 +5,17 @@ require 'spec_helper'
 describe 'storcli::configure' do
   on_supported_os.each do |os, os_facts|
     context "on #{os}" do
-      context 'without storcli' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => nil, 'controllers' => {} } }) }
+      context 'without storcli_tool' do
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => {} } }) }
 
         it { is_expected.to compile }
-        it { is_expected.to have_exec_resource_count(0) }
+        it { is_expected.to have_storcli__controller_resource_count(0) }
+        it { is_expected.to have_storcli__patrolread_resource_count(0) }
+        it { is_expected.to have_storcli__consistencycheck_resource_count(0) }
       end
 
-      context 'without storcli, with management' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => nil, 'controllers' => {} } }) }
+      context 'without storcli_tool, with management' do
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => {} } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -21,11 +23,11 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.to have_exec_resource_count(0) }
+        it { is_expected.to have_storcli__controller_resource_count(0) }
       end
 
-      context 'with storcli, no management' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => {} } }) }
+      context 'with storcli_tool, no management' do
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'storcli_tool' => 'storcli64', 'controllers' => {} } }) }
         let(:params) do
           {
             'configure_settings' => false,
@@ -33,11 +35,22 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.to have_exec_resource_count(0) }
+        it { is_expected.to have_storcli__controller_resource_count(0) }
+        it { is_expected.to have_storcli__patrolread_resource_count(0) }
+        it { is_expected.to have_storcli__consistencycheck_resource_count(0) }
       end
 
-      context 'with storcli, and management of config - defaults' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
+      context 'with storcli_tool, and management of config - defaults' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
@@ -45,12 +58,23 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        # mostly just check that it has a LOT of resources, specific checks come later
-        it { is_expected.to have_exec_resource_count(34) }
+        # One controller + patrolread + consistencycheck per detected controller
+        it { is_expected.to have_storcli__controller_resource_count(2) }
+        it { is_expected.to have_storcli__patrolread_resource_count(2) }
+        it { is_expected.to have_storcli__consistencycheck_resource_count(2) }
       end
 
-      context 'with storcli, and management of config - autorebuild = true' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
+      context 'with storcli_tool, and management of config - autorebuild = true' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
@@ -60,14 +84,25 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('Enable autorebuild on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Enable autorebuild on MegaRAID controller /c1') }
-        it { is_expected.not_to contain_exec('Disable autorebuild on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Disable autorebuild on MegaRAID controller /c1') }
+        it { is_expected.to contain_storcli__controller('controller_0').with(controller: 0, autorebuild: true) }
+        it { is_expected.to contain_storcli__controller('controller_1').with(controller: 1, autorebuild: true) }
+        it { is_expected.to contain_exec('controller_0: Enable autorebuild on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_1: Enable autorebuild on MegaRAID controller /c1') }
+        it { is_expected.not_to contain_exec('controller_0: Disable autorebuild on MegaRAID controller /c0') }
+        it { is_expected.not_to contain_exec('controller_1: Disable autorebuild on MegaRAID controller /c1') }
       end
 
-      context 'with storcli, and management of config - autorebuild = false' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
+      context 'with storcli_tool, and management of config - autorebuild = false' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
@@ -77,14 +112,23 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('Enable autorebuild on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable autorebuild on MegaRAID controller /c1') }
-        it { is_expected.to contain_exec('Disable autorebuild on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Disable autorebuild on MegaRAID controller /c1') }
+        it { is_expected.not_to contain_exec('controller_0: Enable autorebuild on MegaRAID controller /c0') }
+        it { is_expected.not_to contain_exec('controller_1: Enable autorebuild on MegaRAID controller /c1') }
+        it { is_expected.to contain_exec('controller_0: Disable autorebuild on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_1: Disable autorebuild on MegaRAID controller /c1') }
       end
 
-      context 'with storcli, and management of config - rebuildrate=50' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
+      context 'with storcli_tool, and management of config - rebuildrate=50' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
@@ -94,12 +138,45 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('Set rebuildrate=50% on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set rebuildrate=50% on MegaRAID controller /c1') }
+        it { is_expected.to contain_exec('controller_0: Set rebuildrate=50% on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_1: Set rebuildrate=50% on MegaRAID controller /c1') }
       end
 
-      context 'with storcli, and management of config - sync_time_to_controllers = false' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
+      context 'with storcli_tool, manage_rebuild = false' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
+        end
+        let(:params) do
+          {
+            'configure_settings' => true,
+            'controller_manage_rebuild' => false,
+          }
+        end
+
+        it { is_expected.to compile }
+        it { is_expected.to contain_storcli__controller('controller_0').with(autorebuild: nil, rebuildrate: nil) }
+        it { is_expected.not_to contain_exec('controller_0: Enable autorebuild on MegaRAID controller /c0') }
+        it { is_expected.not_to contain_exec('controller_0: Disable autorebuild on MegaRAID controller /c0') }
+      end
+
+      context 'with storcli_tool, sync_time_to_controllers = false' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
@@ -108,14 +185,22 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('Set time on MegaRAID controller /c0 to UTC') }
-        it { is_expected.not_to contain_exec('Set time on MegaRAID controller /c1 to UTC') }
-        it { is_expected.not_to contain_exec('Set time on MegaRAID controller /c0 to local time') }
-        it { is_expected.not_to contain_exec('Set time on MegaRAID controller /c1 to local time') }
+        it { is_expected.to contain_storcli__controller('controller_0').with(sync_time: nil) }
+        it { is_expected.not_to contain_exec('controller_0: Set time on MegaRAID controller /c0 to UTC') }
+        it { is_expected.not_to contain_exec('controller_0: Set time on MegaRAID controller /c0 to local time') }
       end
 
-      context 'with storcli, and management of config - sync_time_to_controllers = true, use UTC' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
+      context 'with storcli_tool, sync_time = true, UTC' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
@@ -125,14 +210,22 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('Set time on MegaRAID controller /c0 to UTC') }
-        it { is_expected.to contain_exec('Set time on MegaRAID controller /c1 to UTC') }
-        it { is_expected.not_to contain_exec('Set time on MegaRAID controller /c0 to local time') }
-        it { is_expected.not_to contain_exec('Set time on MegaRAID controller /c1 to local time') }
+        it { is_expected.to contain_exec('controller_0: Set time on MegaRAID controller /c0 to UTC') }
+        it { is_expected.to contain_exec('controller_1: Set time on MegaRAID controller /c1 to UTC') }
+        it { is_expected.not_to contain_exec('controller_0: Set time on MegaRAID controller /c0 to local time') }
       end
 
-      context 'with storcli, and management of config - sync_time_to_controllers = true, use local time' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
+      context 'with storcli_tool, sync_time = true, local time' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
@@ -142,14 +235,22 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('Set time on MegaRAID controller /c0 to UTC') }
-        it { is_expected.not_to contain_exec('Set time on MegaRAID controller /c1 to UTC') }
-        it { is_expected.to contain_exec('Set time on MegaRAID controller /c0 to local time') }
-        it { is_expected.to contain_exec('Set time on MegaRAID controller /c1 to local time') }
+        it { is_expected.not_to contain_exec('controller_0: Set time on MegaRAID controller /c0 to UTC') }
+        it { is_expected.to contain_exec('controller_0: Set time on MegaRAID controller /c0 to local time') }
+        it { is_expected.to contain_exec('controller_1: Set time on MegaRAID controller /c1 to local time') }
       end
 
-      context 'with storcli, and management of config - perfmode=0' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
+      context 'with storcli_tool, perfmode=0' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
@@ -158,12 +259,21 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('Set perfmode=0 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set perfmode=0 on MegaRAID controller /c1') }
+        it { is_expected.to contain_exec('controller_0: Set perfmode=0 on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_1: Set perfmode=0 on MegaRAID controller /c1') }
       end
 
-      context 'with storcli, and management of config - controller_ncq = true' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
+      context 'with storcli_tool, ncq = true' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
@@ -172,14 +282,22 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('Enable NCQ on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Enable NCQ on MegaRAID controller /c1') }
-        it { is_expected.not_to contain_exec('Disable NCQ on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Disable NCQ on MegaRAID controller /c1') }
+        it { is_expected.to contain_exec('controller_0: Enable NCQ on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_1: Enable NCQ on MegaRAID controller /c1') }
+        it { is_expected.not_to contain_exec('controller_0: Disable NCQ on MegaRAID controller /c0') }
       end
 
-      context 'with storcli, and management of config - controller_ncq = false' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
+      context 'with storcli_tool, ncq = false' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
@@ -188,60 +306,46 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('Enable NCQ on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable NCQ on MegaRAID controller /c1') }
-        it { is_expected.to contain_exec('Disable NCQ on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Disable NCQ on MegaRAID controller /c1') }
+        it { is_expected.not_to contain_exec('controller_0: Enable NCQ on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_0: Disable NCQ on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_1: Disable NCQ on MegaRAID controller /c1') }
       end
 
-      context 'with storcli, and management of config - cacheflushinterval=5' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
+      context 'with storcli_tool, manage_alarm = false' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 1,
+                             'controllers' => { 0 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
-            'controller_cacheflushinterval' => 5,
+            'controller_manage_alarm' => false,
           }
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('Set cacheflushinterval=5 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set cacheflushinterval=5 on MegaRAID controller /c1') }
+        it { is_expected.to contain_storcli__controller('controller_0').with(alarm: nil) }
+        it { is_expected.not_to contain_exec('controller_0: Enable alarm sound on MegaRAID controller /c0') }
+        it { is_expected.not_to contain_exec('controller_0: Disable alarm sound on MegaRAID controller /c0') }
       end
 
-      context 'with storcli, and management of config - controller_bootwithpinnedcache = true' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
-        let(:params) do
-          {
-            'configure_settings' => true,
-            'controller_bootwithpinnedcache' => true,
-          }
+      context 'with storcli_tool, alarm = true' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
         end
-
-        it { is_expected.to compile }
-        it { is_expected.to contain_exec('Enable bootwithpinnedcache on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Enable bootwithpinnedcache on MegaRAID controller /c1') }
-        it { is_expected.not_to contain_exec('Disable bootwithpinnedcache on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Disable bootwithpinnedcache on MegaRAID controller /c1') }
-      end
-
-      context 'with storcli, and management of config - controller_bootwithpinnedcache = false' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
-        let(:params) do
-          {
-            'configure_settings' => true,
-            'controller_bootwithpinnedcache' => false,
-          }
-        end
-
-        it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('Enable bootwithpinnedcache on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable bootwithpinnedcache on MegaRAID controller /c1') }
-        it { is_expected.to contain_exec('Disable bootwithpinnedcache on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Disable bootwithpinnedcache on MegaRAID controller /c1') }
-      end
-
-      context 'with storcli, and management of config - controller_alarm = true' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -251,14 +355,21 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('Enable alarm sound on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Enable alarm sound on MegaRAID controller /c1') }
-        it { is_expected.not_to contain_exec('Disable alarm sound on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Disable alarm sound on MegaRAID controller /c1') }
+        it { is_expected.to contain_exec('controller_0: Enable alarm sound on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_1: Enable alarm sound on MegaRAID controller /c1') }
       end
 
-      context 'with storcli, and management of config - controller_alarm = false' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
+      context 'with storcli_tool, alarm = false' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 2,
+                             'controllers' => { 0 => {}, 1 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
@@ -268,52 +379,44 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('Enable alarm sound on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable alarm sound on MegaRAID controller /c1') }
-        it { is_expected.to contain_exec('Disable alarm sound on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Disable alarm sound on MegaRAID controller /c1') }
+        it { is_expected.to contain_exec('controller_0: Disable alarm sound on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_1: Disable alarm sound on MegaRAID controller /c1') }
       end
 
-      context 'with storcli, and management of config - smartpollinterval=5' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {}, 1 => {} } } }) }
-        let(:params) do
-          {
-            'configure_settings' => true,
-            'controller_smartpollinterval' => 5,
-          }
+      context 'with storcli_tool, patrolread mode=off' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 1,
+                             'controllers' => { 0 => {} },
+                           },
+                         })
         end
-
-        it { is_expected.to compile }
-        it { is_expected.to contain_exec('Set smartpollinterval=5 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set smartpollinterval=5 on MegaRAID controller /c1') }
-      end
-
-      context 'with storcli, and management of config - controller_patrolread_mode=off' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {} } } }) }
         let(:params) do
           {
             'configure_settings' => true,
             'controller_patrolread_mode' => 'off',
-            'controller_patrolread_delay' => 10,
-            'controller_patrolread_rate' => 11,
-            'controller_patrolread_includessds' => false,
-            'controller_patrolread_uncfgareas' => false,
           }
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('Disable patrolread on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable patrolread mode=off on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Set patrolread delay=10 on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Set patrolread rate=11% on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Disable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enagle patrolread on unconfigured areas on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Disable patrolread on unconfigured areas on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli__patrolread('controller_0').with(mode: 'off') }
+        it { is_expected.to contain_exec('controller_0: Disable patrolread on MegaRAID controller /c0') }
       end
 
-      context 'with storcli, and management of config - controller_patrolread_mode=auto' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {} } } }) }
+      context 'with storcli_tool, patrolread mode=auto' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 1,
+                             'controllers' => { 0 => {} },
+                           },
+                         })
+        end
         let(:params) do
           {
             'configure_settings' => true,
@@ -326,126 +429,47 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('Disable patrolread on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Enable patrolread mode=auto on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set patrolread delay=10 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set patrolread rate=11% on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Disable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable patrolread on unconfigured areas on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Disable patrolread on unconfigured areas on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_0: Enable patrolread mode=auto on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_0: Set patrolread delay=10 on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_0: Set patrolread rate=11% on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_0: Disable patrolread on SSDs on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_0: Disable patrolread on unconfigured areas on MegaRAID controller /c0') }
       end
 
-      context 'with storcli, and management of config - controller_patrolread_mode=manual' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {} } } }) }
-        let(:params) do
-          {
-            'configure_settings' => true,
-            'controller_patrolread_mode' => 'manual',
-            'controller_patrolread_delay' => 10,
-            'controller_patrolread_rate' => 11,
-            'controller_patrolread_includessds' => false,
-            'controller_patrolread_uncfgareas' => false,
-          }
+      context 'with storcli_tool, consistencycheck mode=off' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 1,
+                             'controllers' => { 0 => {} },
+                           },
+                         })
         end
-
-        it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('Disable patrolread on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Enable patrolread mode=manual on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Set patrolread delay=10 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set patrolread rate=11% on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Disable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable patrolread on unconfigured areas on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Disable patrolread on unconfigured areas on MegaRAID controller /c0') }
-      end
-
-      context 'with storcli, and management of config - controller_patrolread_includessds=true' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {} } } }) }
-        let(:params) do
-          {
-            'configure_settings' => true,
-            'controller_patrolread_mode' => 'manual',
-            'controller_patrolread_delay' => 10,
-            'controller_patrolread_rate' => 11,
-            'controller_patrolread_includessds' => true,
-            'controller_patrolread_uncfgareas' => false,
-          }
-        end
-
-        it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('Disable patrolread on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Enable patrolread mode=manual on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Set patrolread delay=10 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set patrolread rate=11% on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Enable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Disable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable patrolread on unconfigured areas on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Disable patrolread on unconfigured areas on MegaRAID controller /c0') }
-      end
-
-      context 'with storcli, and management of config - controller_patrolread_uncfgareas=true' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {} } } }) }
-        let(:params) do
-          {
-            'configure_settings' => true,
-            'controller_patrolread_mode' => 'manual',
-            'controller_patrolread_delay' => 10,
-            'controller_patrolread_rate' => 11,
-            'controller_patrolread_includessds' => false,
-            'controller_patrolread_uncfgareas' => true,
-          }
-        end
-
-        it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('Disable patrolread on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Enable patrolread mode=manual on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Set patrolread delay=10 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set patrolread rate=11% on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Disable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Enable patrolread on unconfigured areas on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Disable patrolread on unconfigured areas on MegaRAID controller /c0') }
-      end
-
-      context 'with storcli, and management of config - controller_consistencycheck_mode=off' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {} } } }) }
         let(:params) do
           {
             'configure_settings' => true,
             'controller_consistencycheck_mode' => 'off',
-            'controller_consistencycheck_delay' => 10,
-            'controller_consistencycheck_rate' => 11,
           }
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('Disable consistency check on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Enable consistency check mode=off on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Set consistency check delay=10 on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('Set consistency check rate=11% on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli__consistencycheck('controller_0').with(mode: 'off') }
+        it { is_expected.to contain_exec('controller_0: Disable consistency check on MegaRAID controller /c0') }
       end
 
-      context 'with storcli, and management of config - controller_consistencycheck_mode=seq' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {} } } }) }
-        let(:params) do
-          {
-            'configure_settings' => true,
-            'controller_consistencycheck_mode' => 'seq',
-            'controller_consistencycheck_delay' => 10,
-            'controller_consistencycheck_rate' => 11,
-          }
+      context 'with storcli_tool, consistencycheck mode=conc' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => true,
+                             'storcli_tool' => 'storcli64',
+                             'number_of_controllers' => 1,
+                             'controllers' => { 0 => {} },
+                           },
+                         })
         end
-
-        it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('Disable consistency check on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Enable consistency check mode=seq on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set consistency check delay=10 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set consistency check rate=11% on MegaRAID controller /c0') }
-      end
-
-      context 'with storcli, and management of config - controller_consistencycheck_mode=conc' do
-        let(:facts) { os_facts.merge({ 'megaraid' => { 'present?' => true, 'storcli' => 'storcli64', 'controllers' => { 0 => {} } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -456,10 +480,9 @@ describe 'storcli::configure' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('Disable consistency check on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Enable consistency check mode=conc on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set consistency check delay=10 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('Set consistency check rate=11% on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_0: Enable consistency check mode=conc on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_0: Set consistency check delay=10 on MegaRAID controller /c0') }
+        it { is_expected.to contain_exec('controller_0: Set consistency check rate=11% on MegaRAID controller /c0') }
       end
     end
   end

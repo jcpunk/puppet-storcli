@@ -278,6 +278,12 @@ describe :storcli, type: :fact do
         expect(result).not_to have_key('error')
       end
 
+      it 'has a top-level storcli_tool key' do
+        result = fact.value
+        expect(result).to have_key('storcli_tool')
+        expect(result['storcli_tool']).to eq('/example/path')
+      end
+
       fixture_info[:controller_info].each do |controller_id, controller_data|
         context "controller #{controller_id}" do
           let(:controller) do
