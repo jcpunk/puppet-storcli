@@ -9,7 +9,7 @@
 #
 #   storcli:
 #     present:               bool
-#     storcli:               '/usr/bin/storcli64'
+#     storcli_tool:          '/usr/bin/storcli64'
 #     number_of_controllers: int
 #     controllers:
 #       <id>:
@@ -281,6 +281,7 @@ class Storcli
 
     {
       'present'               => true,
+      'storcli_tool'          => storcli_tools.first,
       'number_of_controllers' => num_controllers,
       'controllers'           => build_controllers_hash,
     }

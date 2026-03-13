@@ -8,449 +8,829 @@
 
 #### Public Classes
 
-* [`storcli`](#storcli): storcli  Main class, include all other classes.
-* [`storcli::configure`](#storcliconfigure): Make any controller settings active
+* [`storcli`](#storcli): Manage LSI MegaRAID / Dell PERC RAID controllers
+* [`storcli::configure`](#storcli--configure): Configure all detected MegaRAID controllers with uniform settings
 
 #### Private Classes
 
 * `storcli::install`: This class handles storcli packages and binary link.
 
+### Defined types
+
+* [`storcli::consistencycheck`](#storcli--consistencycheck): Manage MegaRAID consistency check settings
+* [`storcli::controller`](#storcli--controller): Manage MegaRAID controller settings
+* [`storcli::patrolread`](#storcli--patrolread): Manage MegaRAID patrol read settings
+
 ## Classes
 
 ### <a name="storcli"></a>`storcli`
 
-storcli
+Installs the storcli/perccli package and configures detected controllers.
 
-Main class, include all other classes.
+**Simple usage** — apply sensible defaults to every controller:
+
+    include storcli
+
+**Per-controller configuration** — disable the automatic sweep and
+declare defined types via Hiera or native Puppet:
+
+    class { 'storcli':
+      configure_settings => false,
+      controllers        => {
+        'c0' => { controller => 0, ncq => true,  perfmode => 0 },
+        'c1' => { controller => 1, ncq => false, perfmode => 1 },
+      },
+    }
 
 #### Parameters
 
 The following parameters are available in the `storcli` class:
 
-* [`package_manage`](#package_manage)
-* [`package_name`](#package_name)
-* [`package_ensure`](#package_ensure)
-* [`link_storcli_to`](#link_storcli_to)
-* [`configure_settings`](#configure_settings)
-* [`controller_manage_rebuild`](#controller_manage_rebuild)
-* [`controller_autorebuild`](#controller_autorebuild)
-* [`controller_rebuildrate`](#controller_rebuildrate)
-* [`sync_time_to_controllers`](#sync_time_to_controllers)
-* [`controller_use_utc`](#controller_use_utc)
-* [`controller_perfmode`](#controller_perfmode)
-* [`controller_ncq`](#controller_ncq)
-* [`controller_cacheflushinterval`](#controller_cacheflushinterval)
-* [`controller_bootwithpinnedcache`](#controller_bootwithpinnedcache)
-* [`controller_manage_alarm`](#controller_manage_alarm)
-* [`controller_alarm`](#controller_alarm)
-* [`controller_smartpollinterval`](#controller_smartpollinterval)
-* [`controller_patrolread_mode`](#controller_patrolread_mode)
-* [`controller_patrolread_delay`](#controller_patrolread_delay)
-* [`controller_patrolread_rate`](#controller_patrolread_rate)
-* [`controller_patrolread_includessds`](#controller_patrolread_includessds)
-* [`controller_patrolread_uncfgareas`](#controller_patrolread_uncfgareas)
-* [`controller_consistencycheck_mode`](#controller_consistencycheck_mode)
-* [`controller_consistencycheck_delay`](#controller_consistencycheck_delay)
-* [`controller_consistencycheck_rate`](#controller_consistencycheck_rate)
+* [`package_manage`](#-storcli--package_manage)
+* [`package_name`](#-storcli--package_name)
+* [`package_ensure`](#-storcli--package_ensure)
+* [`link_storcli_to`](#-storcli--link_storcli_to)
+* [`configure_settings`](#-storcli--configure_settings)
+* [`controller_manage_rebuild`](#-storcli--controller_manage_rebuild)
+* [`controller_autorebuild`](#-storcli--controller_autorebuild)
+* [`controller_rebuildrate`](#-storcli--controller_rebuildrate)
+* [`sync_time_to_controllers`](#-storcli--sync_time_to_controllers)
+* [`controller_use_utc`](#-storcli--controller_use_utc)
+* [`controller_time_tolerance`](#-storcli--controller_time_tolerance)
+* [`controller_perfmode`](#-storcli--controller_perfmode)
+* [`controller_ncq`](#-storcli--controller_ncq)
+* [`controller_cacheflushinterval`](#-storcli--controller_cacheflushinterval)
+* [`controller_bootwithpinnedcache`](#-storcli--controller_bootwithpinnedcache)
+* [`controller_manage_alarm`](#-storcli--controller_manage_alarm)
+* [`controller_alarm`](#-storcli--controller_alarm)
+* [`controller_smartpollinterval`](#-storcli--controller_smartpollinterval)
+* [`controller_patrolread_mode`](#-storcli--controller_patrolread_mode)
+* [`controller_patrolread_delay`](#-storcli--controller_patrolread_delay)
+* [`controller_patrolread_rate`](#-storcli--controller_patrolread_rate)
+* [`controller_patrolread_includessds`](#-storcli--controller_patrolread_includessds)
+* [`controller_patrolread_uncfgareas`](#-storcli--controller_patrolread_uncfgareas)
+* [`controller_consistencycheck_mode`](#-storcli--controller_consistencycheck_mode)
+* [`controller_consistencycheck_delay`](#-storcli--controller_consistencycheck_delay)
+* [`controller_consistencycheck_rate`](#-storcli--controller_consistencycheck_rate)
+* [`controllers`](#-storcli--controllers)
+* [`patrolreads`](#-storcli--patrolreads)
+* [`consistencychecks`](#-storcli--consistencychecks)
 
-##### <a name="package_manage"></a>`package_manage`
+##### <a name="-storcli--package_manage"></a>`package_manage`
 
 Data type: `Variant[Boolean, Enum['true', 'false']]`
 
-Whether to manage the storcli package. Default value: value of megaraid['present?'].
+Whether to manage the storcli package.
+Default: value of storcli fact `present` key.
 
-##### <a name="package_name"></a>`package_name`
+##### <a name="-storcli--package_name"></a>`package_name`
 
 Data type: `Array[String]`
 
-Specifies the storcli package to manage. Default value: ['storcli'].
+Specifies the storcli package to manage.
 
-##### <a name="package_ensure"></a>`package_ensure`
+##### <a name="-storcli--package_ensure"></a>`package_ensure`
 
 Data type: `String`
 
-Whether to install the storcli package, and what version to install. Values: 'present', 'latest', or a specific version number.
-Default value: 'present'.
+Package ensure value: 'present', 'latest', or a specific version.
 
-##### <a name="link_storcli_to"></a>`link_storcli_to`
+##### <a name="-storcli--link_storcli_to"></a>`link_storcli_to`
 
 Data type: `Stdlib::Absolutepath`
 
-The official package puts the binary into /opt/MegaRAID/storcli which isn't usually in `$PATH`.
-This module will put a link into another location so the binary is easily found.
-Default value: /usr/local/sbin
+The official package often puts the binary into /opt/MegaRAID/storcli
+which is not usually in `$PATH`.  This parameter creates a symlink so
+the binary is found automatically.
 
-##### <a name="configure_settings"></a>`configure_settings`
-
-Data type: `Boolean`
-
-Should this class be able to enforce configuration settings on the controllers?
-If you've got multiple controllers which should have different configs, you'll want to set this to false.
-Default value: true
-
-##### <a name="controller_manage_rebuild"></a>`controller_manage_rebuild`
+##### <a name="-storcli--configure_settings"></a>`configure_settings`
 
 Data type: `Boolean`
 
-Should this class manage how the controller automatically rebuilds arrays
-Default value: true
+Master switch.  When true the module applies every controller_*
+parameter uniformly to all detected controllers.  Set to false when
+you need per-controller control and use the Hash parameters or
+the defined types directly.
 
-##### <a name="controller_autorebuild"></a>`controller_autorebuild`
+##### <a name="-storcli--controller_manage_rebuild"></a>`controller_manage_rebuild`
 
 Data type: `Boolean`
 
-Should this controller automatically rebuild arrays
-Default value: true
+Manage rebuild settings (autorebuild and rebuildrate).
 
-##### <a name="controller_rebuildrate"></a>`controller_rebuildrate`
+##### <a name="-storcli--controller_autorebuild"></a>`controller_autorebuild`
+
+Data type: `Boolean`
+
+Enable automatic array rebuilds.
+
+##### <a name="-storcli--controller_rebuildrate"></a>`controller_rebuildrate`
 
 Data type: `Integer[0, 100]`
 
-Percentage of IO to dedicate to rebuilding an array
-Default value: 60
+Percentage of IO dedicated to rebuilds (0-100).
 
-##### <a name="sync_time_to_controllers"></a>`sync_time_to_controllers`
-
-Data type: `Boolean`
-
-Should controller clock be synced with the system clock?
-Default value: true
-
-##### <a name="controller_use_utc"></a>`controller_use_utc`
+##### <a name="-storcli--sync_time_to_controllers"></a>`sync_time_to_controllers`
 
 Data type: `Boolean`
 
-Should controller clock use UTC?
-Default value: true
+Sync controller clocks with the system clock.
 
-##### <a name="controller_perfmode"></a>`controller_perfmode`
+##### <a name="-storcli--controller_use_utc"></a>`controller_use_utc`
+
+Data type: `Boolean`
+
+Use UTC for controller clocks (only relevant when sync_time is true).
+
+##### <a name="-storcli--controller_time_tolerance"></a>`controller_time_tolerance`
 
 Data type: `Integer[0]`
 
-Prioritize IOPS(0) or low latency(1)
-Set as an integer should new modes be added
-Default value: 0
+Seconds of drift allowed before a time sync is triggered.
 
-##### <a name="controller_ncq"></a>`controller_ncq`
+##### <a name="-storcli--controller_perfmode"></a>`controller_perfmode`
+
+Data type: `Integer[0]`
+
+Performance mode (0 = IOPS priority, higher values favour low latency).
+
+##### <a name="-storcli--controller_ncq"></a>`controller_ncq`
 
 Data type: `Boolean`
 
-Should Native Command Queue be enabled?
-Default value: true
+Enable Native Command Queue.
 
-##### <a name="controller_cacheflushinterval"></a>`controller_cacheflushinterval`
+##### <a name="-storcli--controller_cacheflushinterval"></a>`controller_cacheflushinterval`
 
 Data type: `Integer[1]`
 
-Time in seconds between cache flushes
-Default value: 4
+Seconds between cache flushes.
 
-##### <a name="controller_bootwithpinnedcache"></a>`controller_bootwithpinnedcache`
-
-Data type: `Boolean`
-
-Continue booting with data stuck in cache?
-Default value: false
-
-##### <a name="controller_manage_alarm"></a>`controller_manage_alarm`
+##### <a name="-storcli--controller_bootwithpinnedcache"></a>`controller_bootwithpinnedcache`
 
 Data type: `Boolean`
 
-Should this class manage the alarm on the controller
-Set to false if storcli cannot manage the alarm on a particular controller
-Default value: true
+Continue booting with data stuck in cache.
 
-##### <a name="controller_alarm"></a>`controller_alarm`
+##### <a name="-storcli--controller_manage_alarm"></a>`controller_manage_alarm`
 
 Data type: `Boolean`
 
-Sound alarm when a disk is bad?
-Datacenters with lots of hosts and noise may want to disable this.
-Default value: true
+Manage the alarm setting.  Set to false when the controller
+does not support alarm management.
 
-##### <a name="controller_smartpollinterval"></a>`controller_smartpollinterval`
+##### <a name="-storcli--controller_alarm"></a>`controller_alarm`
+
+Data type: `Boolean`
+
+Enable audible alarm.
+
+##### <a name="-storcli--controller_smartpollinterval"></a>`controller_smartpollinterval`
 
 Data type: `Integer[0, 65535]`
 
-Time in seconds between polling drive SMART errors (0-65535)
-Default value: 60
+Seconds between SMART error polls (0-65535).
 
-##### <a name="controller_patrolread_mode"></a>`controller_patrolread_mode`
+##### <a name="-storcli--controller_patrolread_mode"></a>`controller_patrolread_mode`
 
 Data type: `Enum['auto', 'manual', 'off']`
 
-Run patrolread either, auto, manual, or off
-Default value: auto
+Patrol read mode: 'auto', 'manual', or 'off'.
 
-##### <a name="controller_patrolread_delay"></a>`controller_patrolread_delay`
+##### <a name="-storcli--controller_patrolread_delay"></a>`controller_patrolread_delay`
 
 Data type: `Integer[0]`
 
-Set the patrolread delay to this many hours
-Default value: 336
+Hours between automatic patrol reads.
 
-##### <a name="controller_patrolread_rate"></a>`controller_patrolread_rate`
+##### <a name="-storcli--controller_patrolread_rate"></a>`controller_patrolread_rate`
 
 Data type: `Integer[0, 100]`
 
-Set the patrolread IO percentage
-Default value: 30
+Percentage of IO for patrol reads (0-100).
 
-##### <a name="controller_patrolread_includessds"></a>`controller_patrolread_includessds`
-
-Data type: `Boolean`
-
-Should we patrol SSD devices
-Default value: false
-
-##### <a name="controller_patrolread_uncfgareas"></a>`controller_patrolread_uncfgareas`
+##### <a name="-storcli--controller_patrolread_includessds"></a>`controller_patrolread_includessds`
 
 Data type: `Boolean`
 
-Should we patrol unconfigured areas
-Default value: false
+Include SSDs in patrol reads.
 
-##### <a name="controller_consistencycheck_mode"></a>`controller_consistencycheck_mode`
+##### <a name="-storcli--controller_patrolread_uncfgareas"></a>`controller_patrolread_uncfgareas`
+
+Data type: `Boolean`
+
+Patrol unconfigured areas.
+
+##### <a name="-storcli--controller_consistencycheck_mode"></a>`controller_consistencycheck_mode`
 
 Data type: `Enum['off', 'seq', 'conc']`
 
-One of off, seq, conc
-Default value: conc
+Consistency check mode: 'off', 'seq', or 'conc'.
 
-##### <a name="controller_consistencycheck_delay"></a>`controller_consistencycheck_delay`
+##### <a name="-storcli--controller_consistencycheck_delay"></a>`controller_consistencycheck_delay`
 
 Data type: `Integer[0]`
 
-Set the consistencycheck delay to this many hours
-Default value: 672
+Hours between consistency check runs.
 
-##### <a name="controller_consistencycheck_rate"></a>`controller_consistencycheck_rate`
+##### <a name="-storcli--controller_consistencycheck_rate"></a>`controller_consistencycheck_rate`
 
 Data type: `Integer[0, 100]`
 
-Set the consistencycheck IO percentage
-Default value: 30
+Percentage of IO for consistency checks (0-100).
 
-### <a name="storcliconfigure"></a>`storcli::configure`
+##### <a name="-storcli--controllers"></a>`controllers`
 
-Configure the storage controllers with the specified settings
+Data type: `Hash`
+
+Hash of `storcli::controller` resources to create.
+Keys are resource titles; values are parameter hashes.
+Useful for per-controller configuration via Hiera.
+
+Default value: `{}`
+
+##### <a name="-storcli--patrolreads"></a>`patrolreads`
+
+Data type: `Hash`
+
+Hash of `storcli::patrolread` resources to create.
+
+Default value: `{}`
+
+##### <a name="-storcli--consistencychecks"></a>`consistencychecks`
+
+Data type: `Hash`
+
+Hash of `storcli::consistencycheck` resources to create.
+
+Default value: `{}`
+
+### <a name="storcli--configure"></a>`storcli::configure`
+
+When `configure_settings` is true this class applies identical
+configuration to every detected controller using the
+`storcli::controller`, `storcli::patrolread`, and
+`storcli::consistencycheck` defined types.
+
+For per-controller configuration, set `configure_settings` to false
+and use the defined types directly, or populate the corresponding
+Hiera hashes (`storcli::controllers`, `storcli::patrolreads`,
+`storcli::consistencychecks`).
 
 #### Parameters
 
 The following parameters are available in the `storcli::configure` class:
 
-* [`configure_settings`](#configure_settings)
-* [`controller_manage_rebuild`](#controller_manage_rebuild)
-* [`controller_autorebuild`](#controller_autorebuild)
-* [`controller_rebuildrate`](#controller_rebuildrate)
-* [`sync_time_to_controllers`](#sync_time_to_controllers)
-* [`controller_use_utc`](#controller_use_utc)
-* [`controller_perfmode`](#controller_perfmode)
-* [`controller_ncq`](#controller_ncq)
-* [`controller_cacheflushinterval`](#controller_cacheflushinterval)
-* [`controller_bootwithpinnedcache`](#controller_bootwithpinnedcache)
-* [`controller_manage_alarm`](#controller_manage_alarm)
-* [`controller_alarm`](#controller_alarm)
-* [`controller_smartpollinterval`](#controller_smartpollinterval)
-* [`controller_patrolread_mode`](#controller_patrolread_mode)
-* [`controller_patrolread_delay`](#controller_patrolread_delay)
-* [`controller_patrolread_rate`](#controller_patrolread_rate)
-* [`controller_patrolread_includessds`](#controller_patrolread_includessds)
-* [`controller_patrolread_uncfgareas`](#controller_patrolread_uncfgareas)
-* [`controller_consistencycheck_mode`](#controller_consistencycheck_mode)
-* [`controller_consistencycheck_delay`](#controller_consistencycheck_delay)
-* [`controller_consistencycheck_rate`](#controller_consistencycheck_rate)
+* [`configure_settings`](#-storcli--configure--configure_settings)
+* [`controller_manage_rebuild`](#-storcli--configure--controller_manage_rebuild)
+* [`controller_autorebuild`](#-storcli--configure--controller_autorebuild)
+* [`controller_rebuildrate`](#-storcli--configure--controller_rebuildrate)
+* [`sync_time_to_controllers`](#-storcli--configure--sync_time_to_controllers)
+* [`controller_use_utc`](#-storcli--configure--controller_use_utc)
+* [`controller_time_tolerance`](#-storcli--configure--controller_time_tolerance)
+* [`controller_perfmode`](#-storcli--configure--controller_perfmode)
+* [`controller_ncq`](#-storcli--configure--controller_ncq)
+* [`controller_cacheflushinterval`](#-storcli--configure--controller_cacheflushinterval)
+* [`controller_bootwithpinnedcache`](#-storcli--configure--controller_bootwithpinnedcache)
+* [`controller_manage_alarm`](#-storcli--configure--controller_manage_alarm)
+* [`controller_alarm`](#-storcli--configure--controller_alarm)
+* [`controller_smartpollinterval`](#-storcli--configure--controller_smartpollinterval)
+* [`controller_patrolread_mode`](#-storcli--configure--controller_patrolread_mode)
+* [`controller_patrolread_delay`](#-storcli--configure--controller_patrolread_delay)
+* [`controller_patrolread_rate`](#-storcli--configure--controller_patrolread_rate)
+* [`controller_patrolread_includessds`](#-storcli--configure--controller_patrolread_includessds)
+* [`controller_patrolread_uncfgareas`](#-storcli--configure--controller_patrolread_uncfgareas)
+* [`controller_consistencycheck_mode`](#-storcli--configure--controller_consistencycheck_mode)
+* [`controller_consistencycheck_delay`](#-storcli--configure--controller_consistencycheck_delay)
+* [`controller_consistencycheck_rate`](#-storcli--configure--controller_consistencycheck_rate)
 
-##### <a name="configure_settings"></a>`configure_settings`
+##### <a name="-storcli--configure--configure_settings"></a>`configure_settings`
 
 Data type: `Any`
 
-Should this class be able to enforce configuration settings on the controllers?
-If you've got multiple controllers which should have different configs, you'll want to set this to false.
-Default value: true
+Master switch: apply configuration to all detected controllers.
 
 Default value: `$storcli::configure_settings`
 
-##### <a name="controller_manage_rebuild"></a>`controller_manage_rebuild`
+##### <a name="-storcli--configure--controller_manage_rebuild"></a>`controller_manage_rebuild`
 
 Data type: `Any`
 
-Should this class manage how the controller automatically rebuilds arrays
-Default value: true
+Whether to manage rebuild settings (autorebuild, rebuildrate).
 
 Default value: `$storcli::controller_manage_rebuild`
 
-##### <a name="controller_autorebuild"></a>`controller_autorebuild`
+##### <a name="-storcli--configure--controller_autorebuild"></a>`controller_autorebuild`
 
 Data type: `Any`
 
-Should this controller automatically rebuild arrays
-Default value: true
+Enable automatic array rebuilds.
 
 Default value: `$storcli::controller_autorebuild`
 
-##### <a name="controller_rebuildrate"></a>`controller_rebuildrate`
+##### <a name="-storcli--configure--controller_rebuildrate"></a>`controller_rebuildrate`
 
 Data type: `Any`
 
-Percentage of IO to dedicate to rebuilding an array
-Default value: 60
+Percentage of IO dedicated to rebuilds (0-100).
 
 Default value: `$storcli::controller_rebuildrate`
 
-##### <a name="sync_time_to_controllers"></a>`sync_time_to_controllers`
+##### <a name="-storcli--configure--sync_time_to_controllers"></a>`sync_time_to_controllers`
 
 Data type: `Any`
 
-Should controller clock be synced with the system clock?
-Default value: true
+Sync controller clocks with the system clock.
 
 Default value: `$storcli::sync_time_to_controllers`
 
-##### <a name="controller_use_utc"></a>`controller_use_utc`
+##### <a name="-storcli--configure--controller_use_utc"></a>`controller_use_utc`
 
 Data type: `Any`
 
-Should controller clock use UTC?
-Default value: true
+Use UTC for controller clocks (applies when sync_time is true).
 
 Default value: `$storcli::controller_use_utc`
 
-##### <a name="controller_perfmode"></a>`controller_perfmode`
+##### <a name="-storcli--configure--controller_time_tolerance"></a>`controller_time_tolerance`
 
 Data type: `Any`
 
-Prioritize IOPS(0) or low latency(1)
-Set as an integer should new modes be added
-Default value: 0
+Seconds of drift allowed before a time sync is triggered.
+
+Default value: `$storcli::controller_time_tolerance`
+
+##### <a name="-storcli--configure--controller_perfmode"></a>`controller_perfmode`
+
+Data type: `Any`
+
+Performance mode (0 = IOPS, higher = low latency).
 
 Default value: `$storcli::controller_perfmode`
 
-##### <a name="controller_ncq"></a>`controller_ncq`
+##### <a name="-storcli--configure--controller_ncq"></a>`controller_ncq`
 
 Data type: `Any`
 
-Should Native Command Queue be enabled?
-Default value: true
+Enable Native Command Queue.
 
 Default value: `$storcli::controller_ncq`
 
-##### <a name="controller_cacheflushinterval"></a>`controller_cacheflushinterval`
+##### <a name="-storcli--configure--controller_cacheflushinterval"></a>`controller_cacheflushinterval`
 
 Data type: `Any`
 
-Time in seconds between cache flushes
-Default value: 4
+Seconds between cache flushes.
 
 Default value: `$storcli::controller_cacheflushinterval`
 
-##### <a name="controller_bootwithpinnedcache"></a>`controller_bootwithpinnedcache`
+##### <a name="-storcli--configure--controller_bootwithpinnedcache"></a>`controller_bootwithpinnedcache`
 
 Data type: `Any`
 
-Continue booting with data stuck in cache?
-Default value: false
+Continue booting with data stuck in cache.
 
 Default value: `$storcli::controller_bootwithpinnedcache`
 
-##### <a name="controller_manage_alarm"></a>`controller_manage_alarm`
+##### <a name="-storcli--configure--controller_manage_alarm"></a>`controller_manage_alarm`
 
 Data type: `Any`
 
-Should this class manage the alarm on the controller
-Set to false if storcli cannot manage the alarm on a particular controller
-Default value: true
+Whether to manage the alarm setting.
 
 Default value: `$storcli::controller_manage_alarm`
 
-##### <a name="controller_alarm"></a>`controller_alarm`
+##### <a name="-storcli--configure--controller_alarm"></a>`controller_alarm`
 
 Data type: `Any`
 
-Sound alarm when a disk is bad?
-Datacenters with lots of hosts and noise may want to disable this.
-Default value: true
+Enable audible alarm.
 
 Default value: `$storcli::controller_alarm`
 
-##### <a name="controller_smartpollinterval"></a>`controller_smartpollinterval`
+##### <a name="-storcli--configure--controller_smartpollinterval"></a>`controller_smartpollinterval`
 
 Data type: `Any`
 
-Time in seconds between polling drive SMART errors (0-65535)
-Default value: 60
+Seconds between SMART error polls (0-65535).
 
 Default value: `$storcli::controller_smartpollinterval`
 
-##### <a name="controller_patrolread_mode"></a>`controller_patrolread_mode`
+##### <a name="-storcli--configure--controller_patrolread_mode"></a>`controller_patrolread_mode`
 
 Data type: `Any`
 
-Run patrolread either, auto, manual, or off
-Default value: auto
+Patrol read mode: 'auto', 'manual', or 'off'.
 
 Default value: `$storcli::controller_patrolread_mode`
 
-##### <a name="controller_patrolread_delay"></a>`controller_patrolread_delay`
+##### <a name="-storcli--configure--controller_patrolread_delay"></a>`controller_patrolread_delay`
 
 Data type: `Any`
 
-Set the patrolread delay to this many hours
-Default value: 336
+Hours between automatic patrol reads.
 
 Default value: `$storcli::controller_patrolread_delay`
 
-##### <a name="controller_patrolread_rate"></a>`controller_patrolread_rate`
+##### <a name="-storcli--configure--controller_patrolread_rate"></a>`controller_patrolread_rate`
 
 Data type: `Any`
 
-Set the patrolread IO percentage
-Default value: 30
+Percentage of IO for patrol reads (0-100).
 
 Default value: `$storcli::controller_patrolread_rate`
 
-##### <a name="controller_patrolread_includessds"></a>`controller_patrolread_includessds`
+##### <a name="-storcli--configure--controller_patrolread_includessds"></a>`controller_patrolread_includessds`
 
 Data type: `Any`
 
-Should we patrol SSD devices
-Default value: false
+Include SSDs in patrol reads.
 
 Default value: `$storcli::controller_patrolread_includessds`
 
-##### <a name="controller_patrolread_uncfgareas"></a>`controller_patrolread_uncfgareas`
+##### <a name="-storcli--configure--controller_patrolread_uncfgareas"></a>`controller_patrolread_uncfgareas`
 
 Data type: `Any`
 
-Should we patrol unconfigured areas
-Default value: false
+Patrol unconfigured areas.
 
 Default value: `$storcli::controller_patrolread_uncfgareas`
 
-##### <a name="controller_consistencycheck_mode"></a>`controller_consistencycheck_mode`
+##### <a name="-storcli--configure--controller_consistencycheck_mode"></a>`controller_consistencycheck_mode`
 
 Data type: `Any`
 
-One of off, seq, conc
-Default value: conc
+Consistency check mode: 'off', 'seq', or 'conc'.
 
 Default value: `$storcli::controller_consistencycheck_mode`
 
-##### <a name="controller_consistencycheck_delay"></a>`controller_consistencycheck_delay`
+##### <a name="-storcli--configure--controller_consistencycheck_delay"></a>`controller_consistencycheck_delay`
 
 Data type: `Any`
 
-Set the consistencycheck delay to this many hours
-Default value: 672
+Hours between consistency check runs.
 
 Default value: `$storcli::controller_consistencycheck_delay`
 
-##### <a name="controller_consistencycheck_rate"></a>`controller_consistencycheck_rate`
+##### <a name="-storcli--configure--controller_consistencycheck_rate"></a>`controller_consistencycheck_rate`
 
 Data type: `Any`
 
-Set the consistencycheck IO percentage
-Default value: 30
+Percentage of IO for consistency checks (0-100).
 
 Default value: `$storcli::controller_consistencycheck_rate`
+
+## Defined types
+
+### <a name="storcli--consistencycheck"></a>`storcli::consistencycheck`
+
+Configures consistency check scheduling on one or all MegaRAID/PERC
+controllers.  The `mode` parameter is required and determines which
+sub-settings apply.
+
+#### Examples
+
+##### Enable concurrent consistency checks on all controllers
+
+```puppet
+storcli::consistencycheck { 'cc_all':
+  controller => 'all',
+  mode       => 'conc',
+  delay      => 672,
+  rate       => 30,
+}
+```
+
+##### Disable consistency checks on a specific controller
+
+```puppet
+storcli::consistencycheck { 'no_cc_c1':
+  controller => 1,
+  mode       => 'off',
+}
+```
+
+##### Via Hiera (passed through storcli::consistencychecks hash)
+
+```puppet
+storcli::consistencychecks:
+  'all_cc':
+    controller: 'all'
+    mode: conc
+    delay: 672
+    rate: 30
+```
+
+#### Parameters
+
+The following parameters are available in the `storcli::consistencycheck` defined type:
+
+* [`controller`](#-storcli--consistencycheck--controller)
+* [`storcli_cmd`](#-storcli--consistencycheck--storcli_cmd)
+* [`mode`](#-storcli--consistencycheck--mode)
+* [`delay`](#-storcli--consistencycheck--delay)
+* [`rate`](#-storcli--consistencycheck--rate)
+
+##### <a name="-storcli--consistencycheck--controller"></a>`controller`
+
+Data type: `Variant[Integer[0], Enum['all']]`
+
+Controller ID (integer) or 'all' to target every detected controller.
+
+##### <a name="-storcli--consistencycheck--storcli_cmd"></a>`storcli_cmd`
+
+Data type: `Optional[String[1]]`
+
+Path to the storcli/perccli binary.
+Defaults to the binary found by the storcli fact.
+
+Default value: `$facts.dig('storcli', 'storcli_tool')`
+
+##### <a name="-storcli--consistencycheck--mode"></a>`mode`
+
+Data type: `Enum['off', 'seq', 'conc']`
+
+Consistency check mode: 'off', 'seq' (sequential), or 'conc' (concurrent).
+
+##### <a name="-storcli--consistencycheck--delay"></a>`delay`
+
+Data type: `Optional[Integer[0]]`
+
+Hours between consistency check runs.
+
+Default value: `undef`
+
+##### <a name="-storcli--consistencycheck--rate"></a>`rate`
+
+Data type: `Optional[Integer[0, 100]]`
+
+Percentage of IO to dedicate to consistency checks (0-100).
+
+Default value: `undef`
+
+### <a name="storcli--controller"></a>`storcli::controller`
+
+Configures general settings on one or all MegaRAID/PERC controllers.
+Each parameter controls an individual setting.  Set a parameter to
+`undef` to leave that setting unmanaged.
+
+#### Examples
+
+##### Apply NCQ to all controllers
+
+```puppet
+storcli::controller { 'ncq_everywhere':
+  controller => 'all',
+  ncq        => true,
+}
+```
+
+##### Configure a specific controller
+
+```puppet
+storcli::controller { 'controller_0':
+  controller         => 0,
+  ncq                => true,
+  perfmode           => 0,
+  cacheflushinterval => 4,
+}
+```
+
+##### Via Hiera (passed through storcli::controllers hash)
+
+```puppet
+storcli::controllers:
+  'my_settings':
+    controller: 0
+    ncq: true
+    perfmode: 0
+```
+
+#### Parameters
+
+The following parameters are available in the `storcli::controller` defined type:
+
+* [`controller`](#-storcli--controller--controller)
+* [`storcli_cmd`](#-storcli--controller--storcli_cmd)
+* [`autorebuild`](#-storcli--controller--autorebuild)
+* [`rebuildrate`](#-storcli--controller--rebuildrate)
+* [`sync_time`](#-storcli--controller--sync_time)
+* [`use_utc`](#-storcli--controller--use_utc)
+* [`time_tolerance`](#-storcli--controller--time_tolerance)
+* [`perfmode`](#-storcli--controller--perfmode)
+* [`ncq`](#-storcli--controller--ncq)
+* [`cacheflushinterval`](#-storcli--controller--cacheflushinterval)
+* [`bootwithpinnedcache`](#-storcli--controller--bootwithpinnedcache)
+* [`alarm`](#-storcli--controller--alarm)
+* [`smartpollinterval`](#-storcli--controller--smartpollinterval)
+
+##### <a name="-storcli--controller--controller"></a>`controller`
+
+Data type: `Variant[Integer[0], Enum['all']]`
+
+Controller ID (integer) or 'all' to target every detected controller.
+
+##### <a name="-storcli--controller--storcli_cmd"></a>`storcli_cmd`
+
+Data type: `Optional[String[1]]`
+
+Path to the storcli/perccli binary.
+Defaults to the binary found by the storcli fact.
+
+Default value: `$facts.dig('storcli', 'storcli_tool')`
+
+##### <a name="-storcli--controller--autorebuild"></a>`autorebuild`
+
+Data type: `Optional[Boolean]`
+
+Enable or disable automatic array rebuilds.
+
+Default value: `undef`
+
+##### <a name="-storcli--controller--rebuildrate"></a>`rebuildrate`
+
+Data type: `Optional[Integer[0, 100]]`
+
+Percentage of IO to dedicate to rebuilds (0-100).
+
+Default value: `undef`
+
+##### <a name="-storcli--controller--sync_time"></a>`sync_time`
+
+Data type: `Optional[Boolean]`
+
+Sync controller clock with the system clock.
+
+Default value: `undef`
+
+##### <a name="-storcli--controller--use_utc"></a>`use_utc`
+
+Data type: `Boolean`
+
+Use UTC for the controller clock (only applies when sync_time is true).
+
+Default value: `true`
+
+##### <a name="-storcli--controller--time_tolerance"></a>`time_tolerance`
+
+Data type: `Integer[0]`
+
+Maximum allowed drift in seconds between controller and system clock
+before a sync is triggered.  Avoids unnecessary writes when the
+controller is only a few seconds off.
+
+Default value: `120`
+
+##### <a name="-storcli--controller--perfmode"></a>`perfmode`
+
+Data type: `Optional[Integer[0]]`
+
+Performance mode (0 = IOPS, higher values favour low latency).
+
+Default value: `undef`
+
+##### <a name="-storcli--controller--ncq"></a>`ncq`
+
+Data type: `Optional[Boolean]`
+
+Enable or disable Native Command Queue.
+
+Default value: `undef`
+
+##### <a name="-storcli--controller--cacheflushinterval"></a>`cacheflushinterval`
+
+Data type: `Optional[Integer[1]]`
+
+Seconds between cache flushes.
+
+Default value: `undef`
+
+##### <a name="-storcli--controller--bootwithpinnedcache"></a>`bootwithpinnedcache`
+
+Data type: `Optional[Boolean]`
+
+Continue booting with data stuck in cache.
+
+Default value: `undef`
+
+##### <a name="-storcli--controller--alarm"></a>`alarm`
+
+Data type: `Optional[Boolean]`
+
+Enable or disable audible alarm.
+
+Default value: `undef`
+
+##### <a name="-storcli--controller--smartpollinterval"></a>`smartpollinterval`
+
+Data type: `Optional[Integer[0, 65535]]`
+
+Seconds between SMART error polls (0-65535).
+
+Default value: `undef`
+
+### <a name="storcli--patrolread"></a>`storcli::patrolread`
+
+Configures patrol read scheduling on one or all MegaRAID/PERC controllers.
+The `mode` parameter is required and determines which sub-settings apply.
+
+#### Examples
+
+##### Enable automatic patrol reads on all controllers
+
+```puppet
+storcli::patrolread { 'auto_patrol':
+  controller  => 'all',
+  mode        => 'auto',
+  delay       => 336,
+  rate        => 30,
+  includessds => false,
+  uncfgareas  => false,
+}
+```
+
+##### Disable patrol reads on a specific controller
+
+```puppet
+storcli::patrolread { 'no_patrol_c1':
+  controller => 1,
+  mode       => 'off',
+}
+```
+
+##### Via Hiera (passed through storcli::patrolreads hash)
+
+```puppet
+storcli::patrolreads:
+  'all_patrol':
+    controller: 'all'
+    mode: auto
+    delay: 336
+    rate: 30
+```
+
+#### Parameters
+
+The following parameters are available in the `storcli::patrolread` defined type:
+
+* [`controller`](#-storcli--patrolread--controller)
+* [`storcli_cmd`](#-storcli--patrolread--storcli_cmd)
+* [`mode`](#-storcli--patrolread--mode)
+* [`delay`](#-storcli--patrolread--delay)
+* [`rate`](#-storcli--patrolread--rate)
+* [`includessds`](#-storcli--patrolread--includessds)
+* [`uncfgareas`](#-storcli--patrolread--uncfgareas)
+
+##### <a name="-storcli--patrolread--controller"></a>`controller`
+
+Data type: `Variant[Integer[0], Enum['all']]`
+
+Controller ID (integer) or 'all' to target every detected controller.
+
+##### <a name="-storcli--patrolread--storcli_cmd"></a>`storcli_cmd`
+
+Data type: `Optional[String[1]]`
+
+Path to the storcli/perccli binary.
+Defaults to the binary found by the storcli fact.
+
+Default value: `$facts.dig('storcli', 'storcli_tool')`
+
+##### <a name="-storcli--patrolread--mode"></a>`mode`
+
+Data type: `Enum['auto', 'manual', 'off']`
+
+Patrol read mode: 'auto', 'manual', or 'off'.
+
+##### <a name="-storcli--patrolread--delay"></a>`delay`
+
+Data type: `Optional[Integer[0]]`
+
+Hours between automatic patrol reads (only applies when mode is 'auto').
+
+Default value: `undef`
+
+##### <a name="-storcli--patrolread--rate"></a>`rate`
+
+Data type: `Optional[Integer[0, 100]]`
+
+Percentage of IO to dedicate to patrol reads (0-100).
+
+Default value: `undef`
+
+##### <a name="-storcli--patrolread--includessds"></a>`includessds`
+
+Data type: `Optional[Boolean]`
+
+Whether to include SSD devices in patrol reads.
+
+Default value: `undef`
+
+##### <a name="-storcli--patrolread--uncfgareas"></a>`uncfgareas`
+
+Data type: `Optional[Boolean]`
+
+Whether to patrol unconfigured areas on drives.
+
+Default value: `undef`
 
