@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 
 **Breaking Changes**
 * The megaraid fact has been removed
+* The `link_storcli_to` option is removed
 
 ## Release 1.2.0
 

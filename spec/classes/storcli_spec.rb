@@ -37,30 +37,6 @@ describe 'storcli' do
 
             it { is_expected.not_to contain_package('storcli') }
           end
-
-          describe 'is storcli binary already in "/usr/local/sbin"' do
-            it { is_expected.not_to contain_file('/usr/local/sbin/storcli64') }
-          end
-        end
-      end
-
-      context 'with card detected, non-default link target' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => '/non/default/storcli' } } } }) }
-
-        it { is_expected.to compile }
-
-        it { is_expected.to contain_class('storcli::install') }
-
-        describe 'storcli::install' do
-          let(:params) { { link_storcli_to: '/tmp/sbin' } }
-
-          describe 'is storcli binary symlinked to target location' do
-            it {
-              is_expected.to contain_file('/tmp/sbin') \
-                .with_ensure('link') \
-                .with_target('/non/default/storcli')
-            }
-          end
         end
       end
 

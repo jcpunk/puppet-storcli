@@ -3,7 +3,6 @@ storcli::package_manage: "%{facts.storcli.present}"
 storcli::package_name:
   - 'storcli'
 storcli::package_ensure: present
-storcli::link_storcli_to: /usr/local/sbin/storcli
 
 storcli::configure_settings: true
 
