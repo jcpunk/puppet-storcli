@@ -3,7 +3,7 @@
 # Main class, include all other classes.
 #
 # @param package_manage
-#   Whether to manage the storcli package. Default value: value of megaraid['present?'].
+#   Whether to manage the storcli package. Default value: value of storcli['present'].
 #
 # @param package_name
 #   Specifies the storcli package to manage. Default value: ['storcli'].

@@ -19,11 +19,12 @@ class storcli::install (
       ensure => $package_ensure,
     }
 
-    unless $facts['megaraid']['storcli'].empty {
-      unless $facts['megaraid']['storcli'] == $link_storcli_to {
+    if $facts['storcli'] and $facts['storcli']['present'] and !$facts['storcli']['controllers'].empty() {
+      $storcli_path = $facts['storcli']['controllers'].values()[0]['storcli_tool']
+      unless $storcli_path == undef or $storcli_path == $link_storcli_to {
         file { $link_storcli_to:
           ensure => 'link',
-          target => $facts['megaraid']['storcli'],
+          target => $storcli_path,
         }
       }
     }
