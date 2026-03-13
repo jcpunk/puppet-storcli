@@ -48,6 +48,10 @@ class Megaraid
   def all_info
     Dir.chdir('/tmp') do
       controller_info
+      controller_settings_info
+      bbu_info
+      pd_summary_info
+      vd_properties_info
       pr_info
       cc_info
     end
@@ -75,6 +79,284 @@ class Megaraid
       next if id.nil?
 
       @controller_info[id] = controller.fetch('Response Data', {})
+    end
+  end
+
+  # Get controller settings information
+  def controller_settings_info
+    @controller_settings = {}
+    return unless present?
+    return unless storcli
+    return unless defined?(@controller_info) && !@controller_info.empty?
+
+    @controller_info.each_key do |controller_id|
+      settings = {}
+      
+      raw = Facter::Util::Resolution.exec("#{storcli} /c#{controller_id} show all J nolog")
+      next unless raw && !raw.empty?
+
+      output = begin
+                 JSON.parse(raw)
+               rescue
+                 nil
+               end
+      next unless output.is_a?(Hash)
+
+      controller_data = output.fetch('Controllers', [])[0]
+      next unless controller_data
+      
+      response_data = controller_data.dig('Response Data') || {}
+      
+      # Extract controller properties which contain settings
+      controller_props = response_data.dig('Controller Properties') || {}
+      
+      # Parse each setting, marking as Un-supported if not present
+      if controller_props.empty?
+        # If we can't get settings, mark as unsupported
+        settings['Auto Rebuild'] = 'Un-supported'
+        settings['Copy Back'] = 'Un-supported'
+        settings['JBOD'] = 'Un-supported'
+      else
+        controller_props.each do |prop|
+          key = prop['Ctrl_Prop']
+          val = prop['Value']
+          
+          # Capture all relevant settings
+          case key
+          when 'Auto Rebuild',
+               'Copy Back',
+               'NCQ Status',
+               'Boot With Pinned Cache',
+               'Alarm',
+               'Load Balance Mode',
+               'Abort CC on Error',
+               'Maintain PD Fail History',
+               'Restore Hot Spare on Insertion',
+               'Spin Down Unconfigured Drives',
+               'Coercion Mode',
+               'Enclosure Power Down',
+               'JBOD'
+            settings[key] = val
+          when 'Rebuild Rate',
+               'Performance Mode',
+               'Cache Flush Interval',
+               'SMART Mode',
+               'SMART Poll Interval',
+               'BGI Rate',
+               'Spin Up Drive Count',
+               'Spin Up Delay'
+            # Store numeric values as integers
+            settings[key] = val.to_i
+          end
+        end
+        
+        # Add sentinel for settings not found in output
+        default_settings = [
+          'Auto Rebuild', 'Copy Back', 'NCQ Status', 
+          'Boot With Pinned Cache', 'Alarm', 'JBOD',
+          'Load Balance Mode', 'Rebuild Rate', 
+          'Performance Mode', 'Cache Flush Interval',
+          'SMART Poll Interval'
+        ]
+        
+        default_settings.each do |setting_name|
+          settings[setting_name] ||= 'Un-supported'
+        end
+      end
+      
+      @controller_settings[controller_id] = settings
+    end
+  end
+
+  # Get BBU/CacheVault health information
+  def bbu_info
+    @bbu_info = {}
+    return unless present?
+    return unless storcli
+    return unless defined?(@controller_info) && !@controller_info.empty?
+
+    @controller_info.each_key do |controller_id|
+      bbu_health = {}
+      
+      raw = Facter::Util::Resolution.exec("#{storcli} /c#{controller_id}/bbu show all J nolog")
+      
+      if raw.nil? || raw.empty? || raw.include?('does not have BBU')
+        # No BBU present or not supported
+        bbu_health['state'] = 'Un-supported'
+        bbu_health['type'] = 'Un-supported'
+        bbu_health['charge_percent'] = 'Un-supported'
+        bbu_health['replacement_needed'] = 'Un-supported'
+      else
+        output = begin
+                   JSON.parse(raw)
+                 rescue
+                   nil
+                 end
+        
+        if output.is_a?(Hash)
+          controller_data = output.fetch('Controllers', [])[0]
+          if controller_data
+            response_data = controller_data.dig('Response Data') || {}
+            bbu_props = response_data.dig('BBU_Info', 0) || {}
+            
+            bbu_health['state'] = bbu_props['State'] || 'Unknown'
+            bbu_health['type'] = bbu_props['Model'] || 'BBU'
+            bbu_health['charge_percent'] = bbu_props['Relative State of Charge'] || 'Unknown'
+            bbu_health['replacement_needed'] = (bbu_props['Pack is about to fail & should be replaced'] == 'Yes')
+            bbu_health['learn_cycle_active'] = (bbu_props['Learn Cycle Active'] == 'Yes')
+            bbu_health['temperature'] = bbu_props['Temperature'] || 'Unknown'
+          end
+        end
+      end
+      
+      @bbu_info[controller_id] = bbu_health
+    end
+  end
+
+  # Get physical drive summary information
+  def pd_summary_info
+    @pd_summary = {}
+    return unless present?
+    return unless storcli
+    return unless defined?(@controller_info) && !@controller_info.empty?
+
+    @controller_info.each_key do |controller_id|
+      summary = {
+        'total_drives' => 0,
+        'drives_by_state' => {},
+        'drives_by_type' => {},
+        'drives_by_media' => {},
+        'total_capacity_gb' => 0,
+        'predictive_failures' => 0
+      }
+      
+      raw = Facter::Util::Resolution.exec("#{storcli} /c#{controller_id}/eall/sall show all J nolog")
+      next unless raw && !raw.empty?
+
+      output = begin
+                 JSON.parse(raw)
+               rescue
+                 nil
+               end
+      next unless output.is_a?(Hash)
+
+      controller_data = output.fetch('Controllers', [])[0]
+      next unless controller_data
+      
+      response_data = controller_data.dig('Response Data') || {}
+      
+      # Iterate through each drive
+      response_data.each do |key, value|
+        next unless key.start_with?('Drive /c')
+        next unless value.is_a?(Array)
+        
+        value.each do |drive_info|
+          next unless drive_info.is_a?(Hash)
+          
+          summary['total_drives'] += 1
+          
+          # Count by state
+          state = drive_info['State'] || 'Unknown'
+          summary['drives_by_state'][state] ||= 0
+          summary['drives_by_state'][state] += 1
+          
+          # Count by interface type
+          intf = drive_info['Intf'] || 'Unknown'
+          summary['drives_by_type'][intf] ||= 0
+          summary['drives_by_type'][intf] += 1
+          
+          # Count by media type
+          media = drive_info['Med'] || 'Unknown'
+          summary['drives_by_media'][media] ||= 0
+          summary['drives_by_media'][media] += 1
+          
+          # Sum capacity
+          size_str = drive_info['Size'] || '0 GB'
+          if size_str =~ /([\d.]+)\s*([GT]B)/
+            size = $1.to_f
+            unit = $2
+            size_gb = (unit == 'TB') ? size * 1024 : size
+            summary['total_capacity_gb'] += size_gb
+          end
+          
+          # Count predictive failures
+          pred_fail = drive_info['Pred Fail'] || '0'
+          summary['predictive_failures'] += 1 if pred_fail.to_i > 0
+        end
+      end
+      
+      # Format capacity nicely
+      if summary['total_capacity_gb'] > 1024
+        summary['total_capacity'] = "#{(summary['total_capacity_gb'] / 1024.0).round(2)} TB"
+      else
+        summary['total_capacity'] = "#{summary['total_capacity_gb'].round(2)} GB"
+      end
+      summary.delete('total_capacity_gb')
+      
+      @pd_summary[controller_id] = summary
+    end
+  end
+
+  # Get virtual drive properties information
+  def vd_properties_info
+    @vd_properties = {}
+    return unless present?
+    return unless storcli
+    return unless defined?(@controller_info) && !@controller_info.empty?
+
+    @controller_info.each_key do |controller_id|
+      vd_props = {}
+      
+      # Get list of VDs first
+      raw = Facter::Util::Resolution.exec("#{storcli} /c#{controller_id}/vall show all J nolog")
+      next unless raw && !raw.empty?
+
+      output = begin
+                 JSON.parse(raw)
+               rescue
+                 nil
+               end
+      next unless output.is_a?(Hash)
+
+      controller_data = output.fetch('Controllers', [])[0]
+      next unless controller_data
+      
+      response_data = controller_data.dig('Response Data') || {}
+      
+      # Process each VD
+      response_data.each do |key, value|
+        next unless key.start_with?('/c') && key.include?('/v')
+        next unless value.is_a?(Array)
+        
+        vd_id = key.split('/v').last
+        
+        value.each do |vd_info|
+          next unless vd_info.is_a?(Hash)
+          
+          props = {}
+          
+          # Static configuration properties
+          props['stripe_size'] = vd_info['Strip Size'] || 'Unknown'
+          props['span_depth'] = vd_info['Span Depth'] || 'Unknown'
+          props['number_of_drives_per_span'] = vd_info['Number Of Drives per span'] || vd_info['Number Of Drives'] || 'Unknown'
+          
+          # Cache policies
+          props['default_cache_policy'] = vd_info['Default Cache Policy'] || 'Unknown'
+          props['current_cache_policy'] = vd_info['Current Cache Policy'] || 'Unknown'
+          props['default_write_policy'] = vd_info['Default Write Policy'] || 'Unknown'
+          props['current_write_policy'] = vd_info['Current Write Policy'] || 'Unknown'
+          props['default_read_policy'] = vd_info['Default Read Policy'] || 'Unknown'
+          props['current_read_policy'] = vd_info['Current Read Policy'] || 'Unknown'
+          
+          # Other properties
+          props['is_vd_boot_drive'] = vd_info['Boot Drive'] || 'No'
+          props['disk_cache_policy'] = vd_info['Disk Cache Policy'] || 'Unknown'
+          
+          vd_props[vd_id] = props
+        end
+      end
+      
+      @vd_properties[controller_id] = vd_props
     end
   end
 
@@ -271,9 +553,13 @@ class Megaraid
         'fw_version'       => parameters.fetch('FW Version', nil),
         'bios_version'     => parameters.fetch('BIOS Version', nil),
 
-        'virtual_drives'   => vd,
-        'patrol_read'      => @pr_info[controller],
+        'virtual_drives'    => vd,
+        'patrol_read'       => @pr_info[controller],
         'consistency_check' => @cc_info[controller],
+        'controller_settings' => @controller_settings&.fetch(controller, {}),
+        'bbu_info' => @bbu_info&.fetch(controller, {}),
+        'physical_drive_summary' => @pd_summary&.fetch(controller, {}),
+        'vd_properties' => @vd_properties&.fetch(controller, {}),
       }
     end
 

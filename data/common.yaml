@@ -7,27 +7,35 @@ storcli::link_storcli_to: /usr/local/sbin/storcli
 
 storcli::configure_settings: true
 
-storcli::controller_manage_rebuild: true
-storcli::controller_autorebuild: true
-storcli::controller_rebuildrate: 60
-
 storcli::sync_time_to_controllers: true
 storcli::controller_use_utc: true
 
-storcli::controller_perfmode: 0
-storcli::controller_ncq: true
-storcli::controller_cacheflushinterval: 4
-storcli::controller_bootwithpinnedcache: false
+# Default settings for all controllers
+storcli::controller_defaults:
+  autorebuild: true
+  rebuildrate: 60
+  perfmode: 0
+  ncq: true
+  cacheflushinterval: 4
+  bootwithpinnedcache: false
+  alarm: true
+  smartpollinterval: 60
+  # copyback: true        # Auto copy back on hot spare rebuild
+  # jbod: false           # JBOD mode (use with caution)
+  patrolread_mode: 'auto'
+  patrolread_delay: 336
+  patrolread_rate: 30
+  patrolread_includessds: false
+  patrolread_uncfgareas: false
+  consistencycheck_mode: 'conc'
+  consistencycheck_delay: 672
+  consistencycheck_rate: 30
 
-storcli::controller_manage_alarm: true
-storcli::controller_alarm: true
-storcli::controller_bbu_learndelayinterval: 0
-storcli::controller_smartpollinterval: 60
-storcli::controller_patrolread_mode: auto
-storcli::controller_patrolread_delay: 336
-storcli::controller_patrolread_rate: 30
-storcli::controller_patrolread_includessds: false
-storcli::controller_patrolread_uncfgareas: false
-storcli::controller_consistencycheck_mode: conc
-storcli::controller_consistencycheck_delay: 672
-storcli::controller_consistencycheck_rate: 30
+# Per-controller overrides (empty by default)
+storcli::controller_overrides: {}
+
+# Default settings for all virtual drives (empty by default - VD settings not managed unless specified)
+storcli::vd_defaults: {}
+
+# Per-VD overrides (empty by default)
+storcli::vd_overrides: {}
