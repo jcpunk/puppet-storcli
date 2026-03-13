@@ -34,6 +34,13 @@ storcli::controller_consistencycheck_mode: conc
 storcli::controller_consistencycheck_delay: 672
 storcli::controller_consistencycheck_rate: 30
 
+storcli::controller_manage_vd_cache: false
+storcli::controller_vd_write_policy: ~
+storcli::controller_vd_read_policy: ~
+storcli::controller_vd_io_policy: ~
+storcli::controller_vd_disk_cache: ~
+
 storcli::controllers: {}
 storcli::patrolreads: {}
 storcli::consistencychecks: {}
+storcli::vds: {}

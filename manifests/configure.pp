@@ -2,13 +2,13 @@
 #
 # When `configure_settings` is true this class applies identical
 # configuration to every detected controller using the
-# `storcli::controller`, `storcli::patrolread`, and
-# `storcli::consistencycheck` defined types.
+# `storcli::controller`, `storcli::patrolread`,
+# `storcli::consistencycheck`, and `storcli::vd` defined types.
 #
 # For per-controller configuration, set `configure_settings` to false
 # and use the defined types directly, or populate the corresponding
 # Hiera hashes (`storcli::controllers`, `storcli::patrolreads`,
-# `storcli::consistencychecks`).
+# `storcli::consistencychecks`, `storcli::vds`).
 #
 # @param configure_settings
 #   Master switch: apply configuration to all detected controllers.
@@ -54,6 +54,16 @@
 #   Hours between consistency check runs.
 # @param controller_consistencycheck_rate
 #   Percentage of IO for consistency checks (0-100).
+# @param controller_manage_vd_cache
+#   Whether to manage VD cache policies.
+# @param controller_vd_write_policy
+#   Write cache policy for all VDs.
+# @param controller_vd_read_policy
+#   Read cache policy for all VDs.
+# @param controller_vd_io_policy
+#   IO policy for all VDs.
+# @param controller_vd_disk_cache
+#   Disk cache setting for all VDs.
 #
 class storcli::configure (
   # lint:ignore:parameter_types
@@ -79,6 +89,11 @@ class storcli::configure (
   $controller_consistencycheck_mode  = $storcli::controller_consistencycheck_mode,
   $controller_consistencycheck_delay = $storcli::controller_consistencycheck_delay,
   $controller_consistencycheck_rate  = $storcli::controller_consistencycheck_rate,
+  $controller_manage_vd_cache        = $storcli::controller_manage_vd_cache,
+  $controller_vd_write_policy        = $storcli::controller_vd_write_policy,
+  $controller_vd_read_policy         = $storcli::controller_vd_read_policy,
+  $controller_vd_io_policy           = $storcli::controller_vd_io_policy,
+  $controller_vd_disk_cache          = $storcli::controller_vd_disk_cache,
   # lint:endignore
 ) inherits storcli {
   if $configure_settings {
@@ -123,6 +138,18 @@ class storcli::configure (
           mode        => $controller_consistencycheck_mode,
           delay       => $controller_consistencycheck_delay,
           rate        => $controller_consistencycheck_rate,
+        }
+
+        if $controller_manage_vd_cache {
+          storcli::vd { "controller_${x}":
+            controller   => Integer($x),
+            virtual_disk => 'all',
+            storcli_cmd  => $_storcli_tool,
+            write_policy => $controller_vd_write_policy,
+            read_policy  => $controller_vd_read_policy,
+            io_policy    => $controller_vd_io_policy,
+            disk_cache   => $controller_vd_disk_cache,
+          }
         }
       }
     }

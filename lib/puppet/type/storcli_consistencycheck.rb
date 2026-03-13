@@ -21,11 +21,13 @@ Puppet::Type.newtype(:storcli_consistencycheck) do
   end
 
   newparam(:controller) do
-    desc 'Integer controller ID (e.g. 0).'
+    desc "Integer controller ID (e.g. 0) or 'all' to target every detected controller."
     validate do |value|
-      raise Puppet::Error, 'controller must be a non-negative integer' unless value.to_s =~ %r{^\d+$}
+      unless value.to_s =~ %r{^\d+$} || value.to_s == 'all'
+        raise Puppet::Error, "controller must be a non-negative integer or 'all'"
+      end
     end
-    munge { |v| v.to_i }
+    munge { |v| v.to_s == 'all' ? 'all' : v.to_i }
   end
 
   newparam(:storcli_cmd) do

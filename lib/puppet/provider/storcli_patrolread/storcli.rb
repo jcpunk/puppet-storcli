@@ -9,19 +9,17 @@ Puppet::Type.type(:storcli_patrolread).provide(
 ) do
   desc 'Manage MegaRAID patrol read settings via storcli/perccli JSON interface'
 
-  def pr_props
-    @pr_props ||= show_property('patrolread')
-  end
-
   def mode
-    val = lookup_value(pr_props, 'PR Mode')
-    return nil if val.nil?
+    read_property('patrolread') do |_cid, props|
+      val = lookup_value(props, 'PR Mode')
+      next nil if val.nil?
 
-    case val
-    when /Auto/i    then :auto
-    when /Manual/i  then :manual
-    when /Disable/i then :off
-    else val.to_s.downcase.to_sym
+      case val
+      when /Auto/i    then :auto
+      when /Manual/i  then :manual
+      when /Disable/i then :off
+      else val.to_s.downcase.to_sym
+      end
     end
   end
 
@@ -31,15 +29,15 @@ Puppet::Type.type(:storcli_patrolread).provide(
     else
       storcli_set("set patrolread=on mode=#{val}")
     end
-    @pr_props = nil # reset cache
   end
 
   def delay
-    val = lookup_value(pr_props, 'PR Execution Delay')
-    return nil if val.nil?
+    read_property('patrolread') do |_cid, props|
+      val = lookup_value(props, 'PR Execution Delay')
+      next nil if val.nil?
 
-    # Value may be "336 hours" or "336"
-    val.to_s.gsub(/\s*hours?.*/, '').strip.to_i
+      val.to_s.gsub(/\s*hours?.*/, '').strip.to_i
+    end
   end
 
   def delay=(val)
@@ -47,12 +45,12 @@ Puppet::Type.type(:storcli_patrolread).provide(
   end
 
   def rate
-    # prrate is a separate command
-    props = show_property('prrate')
-    val = lookup_value(props, 'Patrol Read Rate')
-    return nil if val.nil?
+    read_property('prrate') do |_cid, props|
+      val = lookup_value(props, 'Patrol Read Rate')
+      next nil if val.nil?
 
-    val.to_s.gsub('%', '').strip.to_i
+      val.to_s.gsub('%', '').strip.to_i
+    end
   end
 
   def rate=(val)
@@ -60,10 +58,12 @@ Puppet::Type.type(:storcli_patrolread).provide(
   end
 
   def includessds
-    val = lookup_value(pr_props, 'PR on SSD')
-    return nil if val.nil?
+    read_property('patrolread') do |_cid, props|
+      val = lookup_value(props, 'PR on SSD')
+      next nil if val.nil?
 
-    enabled_to_bool(val)
+      enabled_to_bool(val)
+    end
   end
 
   def includessds=(val)
@@ -71,14 +71,22 @@ Puppet::Type.type(:storcli_patrolread).provide(
   end
 
   def uncfgareas
-    val = lookup_value(pr_props, 'PR on EPD')
-    # Some controllers don't support this at all
-    return :absent if val.nil?
+    read_property('patrolread') do |_cid, props|
+      val = lookup_value(props, 'PR on EPD')
+      next :absent if val.nil?
 
-    enabled_to_bool(val)
+      enabled_to_bool(val)
+    end
   end
 
   def uncfgareas=(val)
-    storcli_set("set patrolread uncfgareas=#{bool_to_onoff(val)}")
+    # Only set on controllers that support this feature (have 'PR on EPD')
+    controller_ids.each do |cid|
+      props = show_property_for(cid, 'patrolread')
+      epd = lookup_value(props, 'PR on EPD')
+      next if epd.nil?
+
+      storcli_set_for(cid, "set patrolread uncfgareas=#{bool_to_onoff(val)}")
+    end
   end
 end

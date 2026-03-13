@@ -87,6 +87,17 @@
 # @param controller_consistencycheck_rate
 #   Percentage of IO for consistency checks (0-100).
 #
+# @param controller_manage_vd_cache
+#   Whether to manage VD cache policies when configure_settings is true.
+# @param controller_vd_write_policy
+#   Default write cache policy for all VDs: 'wt', 'wb', or 'awb'.
+# @param controller_vd_read_policy
+#   Default read cache policy for all VDs: 'ra' or 'nora'.
+# @param controller_vd_io_policy
+#   Default IO policy for all VDs: 'direct' or 'cached'.
+# @param controller_vd_disk_cache
+#   Default disk cache for all VDs: 'on', 'off', or 'default'.
+#
 # @param controllers
 #   Hash of `storcli::controller` resources to create.
 #   Keys are resource titles; values are parameter hashes.
@@ -97,6 +108,9 @@
 #
 # @param consistencychecks
 #   Hash of `storcli::consistencycheck` resources to create.
+#
+# @param vds
+#   Hash of `storcli::vd` resources to create.
 #
 class storcli (
   # Hiera can convert facts to strings, but we really want a bool
@@ -127,9 +141,15 @@ class storcli (
   Enum['off', 'seq', 'conc']    $controller_consistencycheck_mode,
   Integer[0]                    $controller_consistencycheck_delay,
   Integer[0, 100]               $controller_consistencycheck_rate,
+  Boolean                       $controller_manage_vd_cache,
+  Optional[Enum['wt', 'wb', 'awb']]      $controller_vd_write_policy,
+  Optional[Enum['ra', 'nora']]            $controller_vd_read_policy,
+  Optional[Enum['direct', 'cached']]      $controller_vd_io_policy,
+  Optional[Enum['on', 'off', 'default']]  $controller_vd_disk_cache,
   Hash                          $controllers       = {},
   Hash                          $patrolreads       = {},
   Hash                          $consistencychecks = {},
+  Hash                          $vds               = {},
 ) {
   contain storcli::install
   contain storcli::configure
@@ -142,6 +162,8 @@ class storcli (
   Class['storcli::install'] -> Storcli_controller <| |>
   Class['storcli::install'] -> Storcli_patrolread <| |>
   Class['storcli::install'] -> Storcli_consistencycheck <| |>
+  Class['storcli::install'] -> Storcli::Vd <| |>
+  Class['storcli::install'] -> Storcli_vd <| |>
 
   # Create defined type resources from Hiera hashes.
   # Use this when configure_settings is false and you need
@@ -158,6 +180,11 @@ class storcli (
   }
   $consistencychecks.each |$_name, $_params| {
     storcli::consistencycheck { $_name:
+      * => $_params,
+    }
+  }
+  $vds.each |$_name, $_params| {
+    storcli::vd { $_name:
       * => $_params,
     }
   }
