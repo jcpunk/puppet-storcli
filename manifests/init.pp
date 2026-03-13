@@ -134,10 +134,14 @@ class storcli (
   contain storcli::install
   contain storcli::configure
 
-  # Ensure install completes before any controller configuration
+  # Ensure install completes before any controller configuration.
+  # Order both the defined type wrappers and the native types.
   Class['storcli::install'] -> Storcli::Controller <| |>
   Class['storcli::install'] -> Storcli::Patrolread <| |>
   Class['storcli::install'] -> Storcli::Consistencycheck <| |>
+  Class['storcli::install'] -> Storcli_controller <| |>
+  Class['storcli::install'] -> Storcli_patrolread <| |>
+  Class['storcli::install'] -> Storcli_consistencycheck <| |>
 
   # Create defined type resources from Hiera hashes.
   # Use this when configure_settings is false and you need

@@ -34,8 +34,7 @@ describe 'storcli::patrolread' do
         let(:params) { { controller: 0, mode: 'auto', storcli_cmd: :undef } }
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Enable patrolread mode=auto on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Disable patrolread on MegaRAID controller /c0') }
+        it { is_expected.to have_storcli_patrolread_resource_count(0) }
       end
 
       context 'mode=off' do
@@ -53,14 +52,7 @@ describe 'storcli::patrolread' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Disable patrolread on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Enable patrolread mode=off on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Set patrolread delay=10 on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Set patrolread rate=11% on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Enable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Disable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Enable patrolread on unconfigured areas on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Disable patrolread on unconfigured areas on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_patrolread('test_c0').with(mode: 'off') }
       end
 
       context 'mode=auto with all sub-settings' do
@@ -78,17 +70,18 @@ describe 'storcli::patrolread' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Disable patrolread on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Enable patrolread mode=auto on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Set patrolread delay=10 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Set patrolread rate=11% on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Enable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Disable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Enable patrolread on unconfigured areas on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Disable patrolread on unconfigured areas on MegaRAID controller /c0') }
+        it {
+          is_expected.to contain_storcli_patrolread('test_c0').with(
+            mode: 'auto',
+            delay: 10,
+            rate: 11,
+            includessds: false,
+            uncfgareas: false,
+          )
+        }
       end
 
-      context 'mode=manual (delay not applied)' do
+      context 'mode=manual (delay not applied by native type)' do
         let(:title) { 'test' }
         let(:facts) { default_facts }
         let(:params) do
@@ -103,14 +96,14 @@ describe 'storcli::patrolread' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Disable patrolread on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Enable patrolread mode=manual on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Set patrolread delay=10 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Set patrolread rate=11% on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Enable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Disable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Enable patrolread on unconfigured areas on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Disable patrolread on unconfigured areas on MegaRAID controller /c0') }
+        it {
+          is_expected.to contain_storcli_patrolread('test_c0').with(
+            mode: 'manual',
+            rate: 11,
+            includessds: false,
+            uncfgareas: false,
+          )
+        }
       end
 
       context 'mode=auto with includessds=true' do
@@ -126,8 +119,7 @@ describe 'storcli::patrolread' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Enable patrolread on SSDs on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Disable patrolread on SSDs on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_patrolread('test_c0').with(includessds: true) }
       end
 
       context 'mode=auto with uncfgareas=true' do
@@ -143,8 +135,7 @@ describe 'storcli::patrolread' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Enable patrolread on unconfigured areas on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Disable patrolread on unconfigured areas on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_patrolread('test_c0').with(uncfgareas: true) }
       end
 
       context "with controller => 'all'" do
@@ -165,10 +156,8 @@ describe 'storcli::patrolread' do
         let(:params) { { controller: 'all', mode: 'auto', rate: 30 } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('all_pr: Enable patrolread mode=auto on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('all_pr: Enable patrolread mode=auto on MegaRAID controller /c1') }
-        it { is_expected.to contain_exec('all_pr: Set patrolread rate=30% on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('all_pr: Set patrolread rate=30% on MegaRAID controller /c1') }
+        it { is_expected.to contain_storcli_patrolread('all_pr_c0').with(mode: 'auto', rate: 30) }
+        it { is_expected.to contain_storcli_patrolread('all_pr_c1').with(mode: 'auto', rate: 30) }
       end
 
       context 'mode=auto with minimal settings (sub-settings undef)' do
@@ -177,9 +166,9 @@ describe 'storcli::patrolread' do
         let(:params) { { controller: 0, mode: 'auto' } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('minimal: Enable patrolread mode=auto on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('minimal: Set patrolread delay= on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('minimal: Set patrolread rate=% on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_patrolread('minimal_c0').with(mode: 'auto') }
+        it { is_expected.to contain_storcli_patrolread('minimal_c0').without_delay }
+        it { is_expected.to contain_storcli_patrolread('minimal_c0').without_rate }
       end
     end
   end

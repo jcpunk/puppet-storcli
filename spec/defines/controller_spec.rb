@@ -35,8 +35,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, storcli_cmd: :undef } }
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Enable NCQ on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Enable autorebuild on MegaRAID controller /c0') }
+        it { is_expected.to have_storcli_controller_resource_count(0) }
       end
 
       context 'with controller 0 and autorebuild enabled' do
@@ -45,9 +44,8 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, autorebuild: true } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Enable autorebuild on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Disable autorebuild on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Enable autorebuild on MegaRAID controller /c1') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(controller: 0, autorebuild: true) }
+        it { is_expected.not_to contain_storcli_controller('test_c1') }
       end
 
       context 'with controller 0 and autorebuild disabled' do
@@ -56,8 +54,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, autorebuild: false } }
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Enable autorebuild on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Disable autorebuild on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(controller: 0, autorebuild: false) }
       end
 
       context 'with autorebuild undef (not managed)' do
@@ -66,8 +63,8 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0 } }
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Enable autorebuild on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Disable autorebuild on MegaRAID controller /c0') }
+        # autorebuild should not be passed to the native type
+        it { is_expected.to contain_storcli_controller('test_c0').without_autorebuild }
       end
 
       context 'with rebuildrate=50' do
@@ -76,7 +73,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, rebuildrate: 50 } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Set rebuildrate=50% on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(rebuildrate: 50) }
       end
 
       context 'with sync_time true and use_utc true' do
@@ -85,8 +82,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, sync_time: true, use_utc: true } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Set time on MegaRAID controller /c0 to UTC') }
-        it { is_expected.not_to contain_exec('test: Set time on MegaRAID controller /c0 to local time') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(sync_time: true, use_utc: true) }
       end
 
       context 'with sync_time true and use_utc false' do
@@ -95,8 +91,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, sync_time: true, use_utc: false } }
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Set time on MegaRAID controller /c0 to UTC') }
-        it { is_expected.to contain_exec('test: Set time on MegaRAID controller /c0 to local time') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(sync_time: true, use_utc: false) }
       end
 
       context 'with sync_time undef (not managed)' do
@@ -105,8 +100,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0 } }
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Set time on MegaRAID controller /c0 to UTC') }
-        it { is_expected.not_to contain_exec('test: Set time on MegaRAID controller /c0 to local time') }
+        it { is_expected.to contain_storcli_controller('test_c0').without_sync_time }
       end
 
       context 'with time_tolerance=300' do
@@ -115,10 +109,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, sync_time: true, use_utc: true, time_tolerance: 300 } }
 
         it { is_expected.to compile }
-        it {
-          is_expected.to contain_exec('test: Set time on MegaRAID controller /c0 to UTC')
-            .with_unless(%r{-le 300})
-        }
+        it { is_expected.to contain_storcli_controller('test_c0').with(time_tolerance: 300) }
       end
 
       context 'with perfmode=0' do
@@ -127,7 +118,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, perfmode: 0 } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Set perfmode=0 on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(perfmode: 0) }
       end
 
       context 'with ncq enabled' do
@@ -136,8 +127,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, ncq: true } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Enable NCQ on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Disable NCQ on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(ncq: true) }
       end
 
       context 'with ncq disabled' do
@@ -146,8 +136,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, ncq: false } }
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Enable NCQ on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Disable NCQ on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(ncq: false) }
       end
 
       context 'with cacheflushinterval=5' do
@@ -156,7 +145,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, cacheflushinterval: 5 } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Set cacheflushinterval=5 on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(cacheflushinterval: 5) }
       end
 
       context 'with bootwithpinnedcache enabled' do
@@ -165,8 +154,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, bootwithpinnedcache: true } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Enable bootwithpinnedcache on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Disable bootwithpinnedcache on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(bootwithpinnedcache: true) }
       end
 
       context 'with bootwithpinnedcache disabled' do
@@ -175,8 +163,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, bootwithpinnedcache: false } }
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Enable bootwithpinnedcache on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Disable bootwithpinnedcache on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(bootwithpinnedcache: false) }
       end
 
       context 'with alarm enabled' do
@@ -185,8 +172,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, alarm: true } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Enable alarm sound on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Disable alarm sound on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(alarm: true) }
       end
 
       context 'with alarm disabled' do
@@ -195,8 +181,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, alarm: false } }
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Enable alarm sound on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Disable alarm sound on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(alarm: false) }
       end
 
       context 'with smartpollinterval=5' do
@@ -205,7 +190,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, smartpollinterval: 5 } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Set smartpollinterval=5 on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_controller('test_c0').with(smartpollinterval: 5) }
       end
 
       context "with controller => 'all'" do
@@ -214,10 +199,8 @@ describe 'storcli::controller' do
         let(:params) { { controller: 'all', ncq: true, alarm: false } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('all_settings: Enable NCQ on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('all_settings: Enable NCQ on MegaRAID controller /c1') }
-        it { is_expected.to contain_exec('all_settings: Disable alarm sound on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('all_settings: Disable alarm sound on MegaRAID controller /c1') }
+        it { is_expected.to contain_storcli_controller('all_settings_c0').with(controller: 0, ncq: true, alarm: false) }
+        it { is_expected.to contain_storcli_controller('all_settings_c1').with(controller: 1, ncq: true, alarm: false) }
       end
 
       context "with controller => 'all' and no controllers detected" do
@@ -235,7 +218,7 @@ describe 'storcli::controller' do
         let(:params) { { controller: 'all', ncq: true } }
 
         it { is_expected.to compile }
-        it { is_expected.to have_exec_resource_count(0) }
+        it { is_expected.to have_storcli_controller_resource_count(0) }
       end
 
       context 'with only some settings managed' do
@@ -244,13 +227,10 @@ describe 'storcli::controller' do
         let(:params) { { controller: 0, ncq: true, alarm: true } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('partial: Enable NCQ on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('partial: Enable alarm sound on MegaRAID controller /c0') }
-        # Everything else should be unmanaged
-        it { is_expected.not_to contain_exec('partial: Enable autorebuild on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('partial: Disable autorebuild on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('partial: Set time on MegaRAID controller /c0 to UTC') }
-        it { is_expected.not_to contain_exec('partial: Set time on MegaRAID controller /c0 to local time') }
+        it { is_expected.to contain_storcli_controller('partial_c0').with(ncq: true, alarm: true) }
+        it { is_expected.to contain_storcli_controller('partial_c0').without_autorebuild }
+        it { is_expected.to contain_storcli_controller('partial_c0').without_sync_time }
+        it { is_expected.to contain_storcli_controller('partial_c0').without_perfmode }
       end
     end
   end

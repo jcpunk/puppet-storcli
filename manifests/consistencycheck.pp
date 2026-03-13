@@ -4,6 +4,10 @@
 # controllers.  The `mode` parameter is required and determines which
 # sub-settings apply.
 #
+# This is a convenience wrapper around the `storcli_consistencycheck` native
+# type that adds support for `controller => 'all'` and integrates
+# with the storcli fact for tool discovery.
+#
 # @example Enable concurrent consistency checks on all controllers
 #   storcli::consistencycheck { 'cc_all':
 #     controller => 'all',
@@ -45,57 +49,26 @@ define storcli::consistencycheck (
   Optional[Integer[0]]             $delay       = undef,
   Optional[Integer[0, 100]]        $rate        = undef,
 ) {
-  # lint:ignore:check_unsafe_interpolations lint:ignore:140chars
   if $storcli_cmd {
     $_controller_ids = $controller ? {
       'all'   => pick($facts.dig('storcli', 'controllers'), {}).keys,
       default => [String($controller)],
     }
 
-    # All unless/onlyif guards use JSON output (J flag) for reliable matching.
-    $_show_success = "grep '\"Status\" *: *\"Success\"'"
-
     $_controller_ids.each |$_id| {
-      $_c = "/c${_id}"
+      $_base = {
+        'controller'  => Integer($_id),
+        'storcli_cmd' => $storcli_cmd,
+        'mode'        => $mode,
+      }
+      $_optional = {
+        'delay' => $delay,
+        'rate'  => $rate,
+      }.filter |$_k, $_v| { $_v != undef }
 
-      if $mode == 'off' {
-        exec { "${name}: Disable consistency check on MegaRAID controller ${_c}":
-          command  => "${storcli_cmd} ${_c} set cc=off nolog",
-          unless   => "${storcli_cmd} ${_c} show cc J nolog | grep '\"Value\"' | grep -i '\"Disable'",
-          onlyif   => "${storcli_cmd} ${_c} show cc J nolog | ${_show_success}",
-          cwd      => '/tmp',
-          provider => 'shell',
-        }
-      } else {
-        exec { "${name}: Enable consistency check mode=${mode} on MegaRAID controller ${_c}":
-          command  => "${storcli_cmd} ${_c} set cc=${mode} starttime=\"\$(date -u '+%Y/%m/%d') 23\" nolog",
-          unless   => "${storcli_cmd} ${_c} show cc J nolog | grep '\"Value\"' | grep -i '\"${mode}'",
-          onlyif   => "${storcli_cmd} ${_c} show cc J nolog | ${_show_success}",
-          cwd      => '/tmp',
-          provider => 'shell',
-        }
-
-        if $delay != undef {
-          exec { "${name}: Set consistency check delay=${delay} on MegaRAID controller ${_c}":
-            command  => "${storcli_cmd} ${_c} set cc delay=${delay} nolog",
-            unless   => "${storcli_cmd} ${_c} show cc J nolog | grep '\"Value\"' | grep '\"${delay} \\|\"${delay}\"'",
-            onlyif   => "${storcli_cmd} ${_c} show cc J nolog | ${_show_success}",
-            cwd      => '/tmp',
-            provider => 'shell',
-          }
-        }
-
-        if $rate != undef {
-          exec { "${name}: Set consistency check rate=${rate}% on MegaRAID controller ${_c}":
-            command  => "${storcli_cmd} ${_c} set ccrate=${rate} nolog",
-            unless   => "${storcli_cmd} ${_c} show ccrate J nolog | grep '\"Value\"' | grep '\"${rate}%\"'",
-            onlyif   => "${storcli_cmd} ${_c} show ccrate J nolog | ${_show_success}",
-            cwd      => '/tmp',
-            provider => 'shell',
-          }
-        }
+      storcli_consistencycheck { "${name}_c${_id}":
+        * => $_base + $_optional,
       }
     }
   }
-  # lint:endignore
 }

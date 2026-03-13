@@ -34,8 +34,7 @@ describe 'storcli::consistencycheck' do
         let(:params) { { controller: 0, mode: 'conc', storcli_cmd: :undef } }
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Enable consistency check mode=conc on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Disable consistency check on MegaRAID controller /c0') }
+        it { is_expected.to have_storcli_consistencycheck_resource_count(0) }
       end
 
       context 'mode=off' do
@@ -51,10 +50,7 @@ describe 'storcli::consistencycheck' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('test: Disable consistency check on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Enable consistency check mode=off on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Set consistency check delay=10 on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('test: Set consistency check rate=11% on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_consistencycheck('test_c0').with(mode: 'off') }
       end
 
       context 'mode=seq' do
@@ -70,10 +66,13 @@ describe 'storcli::consistencycheck' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Disable consistency check on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Enable consistency check mode=seq on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Set consistency check delay=10 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Set consistency check rate=11% on MegaRAID controller /c0') }
+        it {
+          is_expected.to contain_storcli_consistencycheck('test_c0').with(
+            mode: 'seq',
+            delay: 10,
+            rate: 11,
+          )
+        }
       end
 
       context 'mode=conc' do
@@ -89,10 +88,13 @@ describe 'storcli::consistencycheck' do
         end
 
         it { is_expected.to compile }
-        it { is_expected.not_to contain_exec('test: Disable consistency check on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Enable consistency check mode=conc on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Set consistency check delay=10 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('test: Set consistency check rate=11% on MegaRAID controller /c0') }
+        it {
+          is_expected.to contain_storcli_consistencycheck('test_c0').with(
+            mode: 'conc',
+            delay: 10,
+            rate: 11,
+          )
+        }
       end
 
       context "with controller => 'all'" do
@@ -113,10 +115,8 @@ describe 'storcli::consistencycheck' do
         let(:params) { { controller: 'all', mode: 'conc', delay: 672, rate: 30 } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('all_cc: Enable consistency check mode=conc on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('all_cc: Enable consistency check mode=conc on MegaRAID controller /c1') }
-        it { is_expected.to contain_exec('all_cc: Set consistency check delay=672 on MegaRAID controller /c0') }
-        it { is_expected.to contain_exec('all_cc: Set consistency check delay=672 on MegaRAID controller /c1') }
+        it { is_expected.to contain_storcli_consistencycheck('all_cc_c0').with(mode: 'conc', delay: 672) }
+        it { is_expected.to contain_storcli_consistencycheck('all_cc_c1').with(mode: 'conc', delay: 672) }
       end
 
       context 'mode=conc with minimal settings (sub-settings undef)' do
@@ -125,10 +125,9 @@ describe 'storcli::consistencycheck' do
         let(:params) { { controller: 0, mode: 'conc' } }
 
         it { is_expected.to compile }
-        it { is_expected.to contain_exec('minimal: Enable consistency check mode=conc on MegaRAID controller /c0') }
-        # delay and rate should not be managed
-        it { is_expected.not_to contain_exec('minimal: Set consistency check delay= on MegaRAID controller /c0') }
-        it { is_expected.not_to contain_exec('minimal: Set consistency check rate=% on MegaRAID controller /c0') }
+        it { is_expected.to contain_storcli_consistencycheck('minimal_c0').with(mode: 'conc') }
+        it { is_expected.to contain_storcli_consistencycheck('minimal_c0').without_delay }
+        it { is_expected.to contain_storcli_consistencycheck('minimal_c0').without_rate }
       end
     end
   end

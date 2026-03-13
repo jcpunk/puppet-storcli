@@ -1,0 +1,155 @@
+# frozen_string_literal: true
+
+require 'puppet/parameter/boolean'
+
+Puppet::Type.newtype(:storcli_controller) do
+  @doc = <<-DOC
+    @summary
+      Manages settings on a single MegaRAID / Dell PERC controller.
+
+    Uses storcli/perccli JSON output for reliable idempotent management.
+    Each property is independently managed — leave a property unset to
+    skip management of that setting.
+
+    @example Enable NCQ and set rebuild rate on controller 0
+      storcli_controller { '/c0':
+        autorebuild    => true,
+        rebuildrate    => 60,
+        ncq            => true,
+      }
+  DOC
+
+  newparam(:name, namevar: true) do
+    desc 'Resource title. By convention use "/c<ID>" but any unique string works.'
+  end
+
+  newparam(:controller) do
+    desc "Integer controller ID (e.g. 0) or 'all' to target every detected controller."
+    validate do |value|
+      unless value.to_s =~ %r{^\d+$} || value.to_s == 'all'
+        raise Puppet::Error, "controller must be a non-negative integer or 'all'"
+      end
+    end
+    munge { |v| v.to_s == 'all' ? 'all' : v.to_i }
+  end
+
+  newparam(:storcli_cmd) do
+    desc 'Path to the storcli or perccli binary.'
+    defaultto '/usr/local/sbin/storcli'
+
+    validate do |value|
+      raise Puppet::Error, 'storcli_cmd must be an absolute path' unless value.start_with?('/')
+    end
+  end
+
+  # --- Boolean on/off properties ---
+
+  newproperty(:autorebuild) do
+    desc 'Enable or disable automatic array rebuilds.'
+    newvalues(:true, :false)
+  end
+
+  newproperty(:ncq) do
+    desc 'Enable or disable Native Command Queue.'
+    newvalues(:true, :false)
+  end
+
+  newproperty(:bootwithpinnedcache) do
+    desc 'Continue booting with data stuck in cache.'
+    newvalues(:true, :false)
+  end
+
+  newproperty(:alarm) do
+    desc 'Enable or disable audible alarm. Silently ignored on controllers with no alarm hardware (ABSENT).'
+    newvalues(:true, :false)
+
+    def insync?(is)
+      return true if is == :absent
+
+      super
+    end
+  end
+
+  # --- Integer properties ---
+
+  newproperty(:rebuildrate) do
+    desc 'Percentage of IO to dedicate to rebuilds (0-100).'
+    validate do |value|
+      v = value.to_i
+      raise Puppet::Error, 'rebuildrate must be between 0 and 100' unless v >= 0 && v <= 100
+    end
+    munge { |v| v.to_i }
+
+    def insync?(is)
+      is.to_i == should.to_i
+    end
+  end
+
+  newproperty(:perfmode) do
+    desc 'Performance mode (0 = IOPS, higher values favour low latency).'
+    validate do |value|
+      raise Puppet::Error, 'perfmode must be a non-negative integer' unless value.to_s =~ %r{^\d+$}
+    end
+    munge { |v| v.to_i }
+
+    def insync?(is)
+      is.to_i == should.to_i
+    end
+  end
+
+  newproperty(:cacheflushinterval) do
+    desc 'Seconds between cache flushes (minimum 1).'
+    validate do |value|
+      v = value.to_i
+      raise Puppet::Error, 'cacheflushinterval must be >= 1' unless v >= 1
+    end
+    munge { |v| v.to_i }
+
+    def insync?(is)
+      is.to_i == should.to_i
+    end
+  end
+
+  newproperty(:smartpollinterval) do
+    desc 'Seconds between SMART error polls (0-65535).'
+    validate do |value|
+      v = value.to_i
+      raise Puppet::Error, 'smartpollinterval must be between 0 and 65535' unless v >= 0 && v <= 65_535
+    end
+    munge { |v| v.to_i }
+
+    def insync?(is)
+      is.to_i == should.to_i
+    end
+  end
+
+  # --- Time sync (special property) ---
+
+  newproperty(:sync_time) do
+    desc 'Sync controller clock with the system clock. Set to :true to enable.'
+    newvalues(:true, :false)
+  end
+
+  newparam(:use_utc) do
+    desc 'Use UTC for the controller clock (only relevant when sync_time is true).'
+    newvalues(:true, :false)
+    defaultto :true
+  end
+
+  newparam(:time_tolerance) do
+    desc 'Seconds of drift allowed before a time sync is triggered.'
+    defaultto 120
+    validate do |value|
+      raise Puppet::Error, 'time_tolerance must be a non-negative integer' unless value.to_s =~ %r{^\d+$}
+    end
+    munge { |v| v.to_i }
+  end
+
+  validate do
+    raise Puppet::Error, 'controller is required' unless self[:controller]
+  end
+
+  autorequire(:package) do
+    ['storcli']
+  end
+end
