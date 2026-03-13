@@ -12,11 +12,6 @@
 #   Whether to install the storcli package, and what version to install. Values: 'present', 'latest', or a specific version number.
 #   Default value: 'present'.
 #
-# @param link_storcli_to
-#   The official package puts the binary into /opt/MegaRAID/storcli which isn't usually in `$PATH`.
-#   This module will put a link into another location so the binary is easily found.
-#   Default value: /usr/local/sbin
-#
 # @param configure_settings
 #   Should this class be able to enforce configuration settings on the controllers?
 #   If you've got multiple controllers which should have different configs, you'll want to set this to false.
@@ -111,7 +106,6 @@ class storcli (
   Variant[Boolean, Enum['true', 'false']] $package_manage,
   Array[String] $package_name,
   String        $package_ensure,
-  Stdlib::Absolutepath $link_storcli_to,
   Boolean         $configure_settings,
   Boolean         $controller_manage_rebuild,
   Boolean         $controller_autorebuild,

@@ -25,7 +25,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, no management' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => false,
@@ -37,7 +37,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - defaults' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -50,7 +50,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - autorebuild = true' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -67,7 +67,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - autorebuild = false' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -84,7 +84,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - rebuildrate=50' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -99,7 +99,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - sync_time_to_controllers = false' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -115,7 +115,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - sync_time_to_controllers = true, use UTC' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -132,7 +132,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - sync_time_to_controllers = true, use local time' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -149,7 +149,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - perfmode=0' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -163,7 +163,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_ncq = true' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -179,7 +179,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_ncq = false' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -195,7 +195,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - cacheflushinterval=5' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -209,7 +209,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_bootwithpinnedcache = true' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -225,7 +225,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_bootwithpinnedcache = false' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -241,7 +241,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_alarm = true' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -258,7 +258,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_alarm = false' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -275,7 +275,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - smartpollinterval=5' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' }, 1 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' }, '1' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -289,7 +289,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_patrolread_mode=off' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -313,7 +313,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_patrolread_mode=auto' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -337,7 +337,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_patrolread_mode=manual' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -361,7 +361,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_patrolread_includessds=true' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -385,7 +385,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_patrolread_uncfgareas=true' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -409,7 +409,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_consistencycheck_mode=off' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -427,7 +427,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_consistencycheck_mode=seq' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
@@ -445,7 +445,7 @@ describe 'storcli::configure' do
       end
 
       context 'with storcli, and management of config - controller_consistencycheck_mode=conc' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { 0 => { 'storcli_tool' => 'storcli64' } } } }) }
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => { '0' => { 'storcli_tool' => 'storcli64' } } } }) }
         let(:params) do
           {
             'configure_settings' => true,
