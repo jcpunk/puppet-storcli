@@ -80,31 +80,32 @@ define storcli::controller (
     $_controller_ids.each |$_id| {
       $_c = "/c${_id}"
 
+      # All unless/onlyif guards use JSON output (J flag) so we can match
+      # the exact JSON "Value" field.  This avoids fragile text-parsing of
+      # the plain-text storcli output whose format varies between versions.
+      #
+      # Pattern:  show <setting> J nolog  →  grep '"Status" *: *"Success"'
+      # Unless:   grep '"Value"' | grep '"<expected>"'
+
+      $_show_success = "grep '\"Status\" *: *\"Success\"'"
+
       if $autorebuild != undef {
-        if $autorebuild {
-          exec { "${name}: Enable autorebuild on MegaRAID controller ${_c}":
-            command  => "${storcli_cmd} ${_c} set autorebuild=on nolog",
-            unless   => "${storcli_cmd} ${_c} show autorebuild nolog | grep AutoRebuild |grep ON",
-            onlyif   => "${storcli_cmd} ${_c} show autorebuild nolog | grep 'Status = Success'",
-            cwd      => '/tmp',
-            provider => 'shell',
-          }
-        } else {
-          exec { "${name}: Disable autorebuild on MegaRAID controller ${_c}":
-            command  => "${storcli_cmd} ${_c} set autorebuild=off nolog",
-            unless   => "${storcli_cmd} ${_c} show autorebuild nolog | grep AutoRebuild |grep OFF",
-            onlyif   => "${storcli_cmd} ${_c} show autorebuild nolog | grep 'Status = Success'",
-            cwd      => '/tmp',
-            provider => 'shell',
-          }
+        $_autorebuild_val = $autorebuild ? { true => 'ON', default => 'OFF' }
+        $_autorebuild_lbl = $autorebuild ? { true => 'Enable', default => 'Disable' }
+        exec { "${name}: ${_autorebuild_lbl} autorebuild on MegaRAID controller ${_c}":
+          command  => "${storcli_cmd} ${_c} set autorebuild=${autorebuild ? { true => 'on', default => 'off' }} nolog",
+          unless   => "${storcli_cmd} ${_c} show autorebuild J nolog | grep '\"Value\"' | grep '\"${_autorebuild_val}\"'",
+          onlyif   => "${storcli_cmd} ${_c} show autorebuild J nolog | ${_show_success}",
+          cwd      => '/tmp',
+          provider => 'shell',
         }
       }
 
       if $rebuildrate != undef {
         exec { "${name}: Set rebuildrate=${rebuildrate}% on MegaRAID controller ${_c}":
           command  => "${storcli_cmd} ${_c} set rebuildrate=${rebuildrate} nolog",
-          unless   => "${storcli_cmd} ${_c} show rebuildrate nolog | grep Rebuildrate | grep ${rebuildrate}%",
-          onlyif   => "${storcli_cmd} ${_c} show rebuildrate nolog | grep 'Status = Success'",
+          unless   => "${storcli_cmd} ${_c} show rebuildrate J nolog | grep '\"Value\"' | grep '\"${rebuildrate}%\"'",
+          onlyif   => "${storcli_cmd} ${_c} show rebuildrate J nolog | ${_show_success}",
           cwd      => '/tmp',
           provider => 'shell',
         }
@@ -113,14 +114,14 @@ define storcli::controller (
       if $sync_time {
         # The unless check parses the controller clock, converts both to epoch
         # seconds, and skips the sync when the difference is within tolerance.
-        $_time_unless_utc   = "ct=\$(${storcli_cmd} ${_c} show time nolog | sed -n 's/.*= *//p' | head -1) && ce=\$(date -u -d \"\$(echo \"\$ct\" | tr '/' '-')\" +%s 2>/dev/null) && se=\$(date -u +%s) && d=\$((se - ce)) && [ \${d#-} -le ${time_tolerance} ]"
-        $_time_unless_local = "ct=\$(${storcli_cmd} ${_c} show time nolog | sed -n 's/.*= *//p' | head -1) && ce=\$(date -d \"\$(echo \"\$ct\" | tr '/' '-')\" +%s 2>/dev/null) && se=\$(date +%s) && d=\$((se - ce)) && [ \${d#-} -le ${time_tolerance} ]"
+        $_time_unless_utc   = "ct=\$(${storcli_cmd} ${_c} show time J nolog | grep '\"Controller Time\"' | sed 's/.*: *\"//;s/\".*//' | head -1) && ce=\$(date -u -d \"\$(echo \"\$ct\" | tr '/' '-')\" +%s 2>/dev/null) && se=\$(date -u +%s) && d=\$((se - ce)) && [ \${d#-} -le ${time_tolerance} ]"
+        $_time_unless_local = "ct=\$(${storcli_cmd} ${_c} show time J nolog | grep '\"Controller Time\"' | sed 's/.*: *\"//;s/\".*//' | head -1) && ce=\$(date -d \"\$(echo \"\$ct\" | tr '/' '-')\" +%s 2>/dev/null) && se=\$(date +%s) && d=\$((se - ce)) && [ \${d#-} -le ${time_tolerance} ]"
 
         if $use_utc {
           exec { "${name}: Set time on MegaRAID controller ${_c} to UTC":
             command  => "${storcli_cmd} ${_c} set time=\$(date -u '+%Y%m%d %H:%M:%S') nolog",
             unless   => $_time_unless_utc,
-            onlyif   => "${storcli_cmd} ${_c} show time nolog | grep 'Status = Success'",
+            onlyif   => "${storcli_cmd} ${_c} show time J nolog | ${_show_success}",
             cwd      => '/tmp',
             provider => 'shell',
           }
@@ -128,7 +129,7 @@ define storcli::controller (
           exec { "${name}: Set time on MegaRAID controller ${_c} to local time":
             command  => "${storcli_cmd} ${_c} set time=systemtime nolog",
             unless   => $_time_unless_local,
-            onlyif   => "${storcli_cmd} ${_c} show time nolog | grep 'Status = Success'",
+            onlyif   => "${storcli_cmd} ${_c} show time J nolog | ${_show_success}",
             cwd      => '/tmp',
             provider => 'shell',
           }
@@ -138,88 +139,67 @@ define storcli::controller (
       if $perfmode != undef {
         exec { "${name}: Set perfmode=${perfmode} on MegaRAID controller ${_c}":
           command  => "${storcli_cmd} ${_c} set perfmode=${perfmode} nolog",
-          unless   => "${storcli_cmd} ${_c} show perfmode nolog | grep 'Perf Mode' | cut -d ' ' -f 3 | grep ${perfmode}",
-          onlyif   => "${storcli_cmd} ${_c} show perfmode nolog | grep 'Status = Success'",
+          unless   => "${storcli_cmd} ${_c} show perfmode J nolog | grep '\"Value\"' | grep '\"${perfmode}\"'",
+          onlyif   => "${storcli_cmd} ${_c} show perfmode J nolog | ${_show_success}",
           cwd      => '/tmp',
           provider => 'shell',
         }
       }
 
       if $ncq != undef {
-        if $ncq {
-          exec { "${name}: Enable NCQ on MegaRAID controller ${_c}":
-            command  => "${storcli_cmd} ${_c} set ncq=on nolog",
-            unless   => "${storcli_cmd} ${_c} show ncq nolog | grep NCQ | grep ON",
-            onlyif   => "${storcli_cmd} ${_c} show ncq nolog | grep 'Status = Success'",
-            cwd      => '/tmp',
-            provider => 'shell',
-          }
-        } else {
-          exec { "${name}: Disable NCQ on MegaRAID controller ${_c}":
-            command  => "${storcli_cmd} ${_c} set ncq=off nolog",
-            unless   => "${storcli_cmd} ${_c} show ncq nolog | grep NCQ | grep OFF",
-            onlyif   => "${storcli_cmd} ${_c} show ncq nolog | grep 'Status = Success'",
-            cwd      => '/tmp',
-            provider => 'shell',
-          }
+        $_ncq_val = $ncq ? { true => 'ON', default => 'OFF' }
+        $_ncq_lbl = $ncq ? { true => 'Enable', default => 'Disable' }
+        exec { "${name}: ${_ncq_lbl} NCQ on MegaRAID controller ${_c}":
+          command  => "${storcli_cmd} ${_c} set ncq=${ncq ? { true => 'on', default => 'off' }} nolog",
+          unless   => "${storcli_cmd} ${_c} show ncq J nolog | grep '\"Value\"' | grep '\"${_ncq_val}\"'",
+          onlyif   => "${storcli_cmd} ${_c} show ncq J nolog | ${_show_success}",
+          cwd      => '/tmp',
+          provider => 'shell',
         }
       }
 
       if $cacheflushinterval != undef {
         exec { "${name}: Set cacheflushinterval=${cacheflushinterval} on MegaRAID controller ${_c}":
           command  => "${storcli_cmd} ${_c} set cacheflushint=${cacheflushinterval} nolog",
-          unless   => "${storcli_cmd} ${_c} show cacheflushint nolog | grep 'Cache Flush Interval' |grep '${cacheflushinterval} sec'",
-          onlyif   => "${storcli_cmd} ${_c} show cacheflushint nolog | grep 'Status = Success'",
+          unless   => "${storcli_cmd} ${_c} show cacheflushint J nolog | grep '\"Value\"' | grep '\"${cacheflushinterval} sec\"'",
+          onlyif   => "${storcli_cmd} ${_c} show cacheflushint J nolog | ${_show_success}",
           cwd      => '/tmp',
           provider => 'shell',
         }
       }
 
       if $bootwithpinnedcache != undef {
-        if $bootwithpinnedcache {
-          exec { "${name}: Enable bootwithpinnedcache on MegaRAID controller ${_c}":
-            command  => "${storcli_cmd} ${_c} set bootwithpinnedcache=on nolog",
-            unless   => "${storcli_cmd} ${_c} show bootwithpinnedcache nolog | grep 'Boot With Pinned Cache' |grep ON",
-            onlyif   => "${storcli_cmd} ${_c} show bootwithpinnedcache nolog | grep 'Status = Success'",
-            cwd      => '/tmp',
-            provider => 'shell',
-          }
-        } else {
-          exec { "${name}: Disable bootwithpinnedcache on MegaRAID controller ${_c}":
-            command  => "${storcli_cmd} ${_c} set bootwithpinnedcache=off nolog",
-            unless   => "${storcli_cmd} ${_c} show bootwithpinnedcache nolog | grep 'Boot With Pinned Cache' |grep OFF",
-            onlyif   => "${storcli_cmd} ${_c} show bootwithpinnedcache nolog | grep 'Status = Success'",
-            cwd      => '/tmp',
-            provider => 'shell',
-          }
+        $_bwpc_val = $bootwithpinnedcache ? { true => 'ON', default => 'OFF' }
+        $_bwpc_lbl = $bootwithpinnedcache ? { true => 'Enable', default => 'Disable' }
+        exec { "${name}: ${_bwpc_lbl} bootwithpinnedcache on MegaRAID controller ${_c}":
+          command  => "${storcli_cmd} ${_c} set bootwithpinnedcache=${bootwithpinnedcache ? { true => 'on', default => 'off' }} nolog",
+          unless   => "${storcli_cmd} ${_c} show bootwithpinnedcache J nolog | grep '\"Value\"' | grep '\"${_bwpc_val}\"'",
+          onlyif   => "${storcli_cmd} ${_c} show bootwithpinnedcache J nolog | ${_show_success}",
+          cwd      => '/tmp',
+          provider => 'shell',
         }
       }
 
       if $alarm != undef {
-        if $alarm {
-          exec { "${name}: Enable alarm sound on MegaRAID controller ${_c}":
-            command  => "${storcli_cmd} ${_c} set alarm=on nolog",
-            unless   => ["${storcli_cmd} ${_c} show alarm nolog | grep Alarm | grep ON", "${storcli_cmd} ${_c} show alarm | grep ABSENT"],
-            onlyif   => "${storcli_cmd} ${_c} show alarm nolog | grep 'Status = Success'",
-            cwd      => '/tmp',
-            provider => 'shell',
-          }
-        } else {
-          exec { "${name}: Disable alarm sound on MegaRAID controller ${_c}":
-            command  => "${storcli_cmd} ${_c} set alarm=off nolog",
-            unless   => ["${storcli_cmd} ${_c} show alarm nolog | grep Alarm | grep OFF", "${storcli_cmd} ${_c} show alarm | grep ABSENT"],
-            onlyif   => "${storcli_cmd} ${_c} show alarm nolog | grep 'Status = Success'",
-            cwd      => '/tmp',
-            provider => 'shell',
-          }
+        $_alarm_val = $alarm ? { true => 'ON', default => 'OFF' }
+        $_alarm_lbl = $alarm ? { true => 'Enable', default => 'Disable' }
+        exec { "${name}: ${_alarm_lbl} alarm sound on MegaRAID controller ${_c}":
+          command  => "${storcli_cmd} ${_c} set alarm=${alarm ? { true => 'on', default => 'off' }} nolog",
+          unless   => [
+            "${storcli_cmd} ${_c} show alarm J nolog | grep '\"Value\"' | grep '\"${_alarm_val}\"'",
+            "${storcli_cmd} ${_c} show alarm J nolog | grep '\"Value\"' | grep '\"ABSENT\"'",
+          ],
+          onlyif   => "${storcli_cmd} ${_c} show alarm J nolog | ${_show_success}",
+          cwd      => '/tmp',
+          provider => 'shell',
         }
       }
 
       if $smartpollinterval != undef {
         exec { "${name}: Set smartpollinterval=${smartpollinterval} on MegaRAID controller ${_c}":
           command  => "${storcli_cmd} ${_c} set smartpollinterval=${smartpollinterval} nolog",
-          unless   => "${storcli_cmd} ${_c} show smartpollinterval nolog | grep 'SmartPollInterval' | grep '${smartpollinterval} sec'",
-          onlyif   => "${storcli_cmd} ${_c} show smartpollinterval nolog | grep 'Status = Success'",
+          unless   => "${storcli_cmd} ${_c} show smartpollinterval J nolog | grep '\"Value\"' | grep '\"${smartpollinterval} sec\"'",
+          onlyif   => "${storcli_cmd} ${_c} show smartpollinterval J nolog | ${_show_success}",
           cwd      => '/tmp',
           provider => 'shell',
         }
