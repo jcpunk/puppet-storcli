@@ -87,6 +87,50 @@ See [REFERENCE](REFERENCE.md) for all other reference documentation.
       - **CC Number of VD completed** - Integer - Number of VDs completed
       - **CC Excluded VDs** - String - VDs that will not run patrol read
 
+The rough structure of the fact is:
+
+```yaml
+megaraid:
+  present?: true
+  storcli: /usr/bin/storcli64
+  number_of_controllers: 1
+  controllers:
+    '0':
+      product_name: 'MegaRAID 9560-8i 4GB'
+      serial_number: 'SV123456789'
+      fw_package_build: '24.21.0-0155'
+      fw_version: '1.460.01-8433'
+      bios_version: '7.11.00.3_4.20.00.0000'
+      virtual_drives:
+        '0':
+          Name: 'storage1'
+          Type: 'RAID6'
+          State: 'Optl'
+          Strip Size: '256 KB'
+          Write Cache: 'wb'
+          Read Cache: 'ra'
+          IO Policy: 'direct'
+          Physical Drive Cache: 'default'
+          Encryption: 'None'
+      patrol_read:
+        PR Mode: 'Auto'
+        PR Execution Delay: 168
+        PR iterations completed: 42
+        PR Next Start time: 'Saturday at 03:00:00'
+        PR on SSD: false
+        PR Current State: 'Stopped'
+        PR Excluded VDs: 'None'
+        PR MaxConcurrentPd: 255
+      consistency_check:
+        CC Operation Mode: 'Concurrent'
+        CC Execution Delay: 168
+        CC Next Starttime: 'Saturday at 03:00:00'
+        CC Current State: 'Stopped'
+        CC Number of iterations: 0
+        CC Number of VD completed: 0
+        CC Excluded VDs: 'None'
+```
+
 ## Limitations
 
 For now, this module only provides a custom fact and ways to deal with patrol read and consistency check.
