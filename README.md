@@ -50,42 +50,116 @@ See [REFERENCE](REFERENCE.md) for all other reference documentation.
 ### Facts
 
 - **megaraid** - structured fact
-  - **present?** - Boolean - check if `/sys/bus/pci/drivers/megaraid_sas` is present?
-  - **storcli** - String - location of `storcli`/`perccli` application.
-  - **number_of_controllers** - Integer - number of megaraid controllers found
-  - **controllers** - Hash[Controller number] - structured fact of megaraid controller informations
+  - **present** - Boolean - `true` when a MegaRAID/MPT3SAS driver is found under `/sys/bus/pci/drivers/`; `false` (only key returned) when no hardware is detected or fact collection fails
+  - **number_of_controllers** - Integer - number of MegaRAID controllers found (only present when `present` is `true`)
+  - **controllers** - Hash[Controller ID] - per-controller information (only present when `present` is `true`)
     - **product_name** - String - Product name
     - **serial_number** - String - Serial number
     - **fw_package_build** - String - Firmware Package Build
     - **fw_version** - String - Firmware Version
     - **bios_version** - String - Controller BIOS Version
-    - **virtual_drives** - Hash - Drive settings per virtual drive
-      - **Name** - String - Name of Virtual Disk
-      - **Type** - String - Type of RAID
-      - **State** - String - State of Virtual Disk
-      - **Strip Size** - String - Strip Size of Virtual Disk
-      - **Write Cache** - String - Write Cache Mode of Virtual Disk
-      - **Read Cache** - String - Read Cache Mode of Virtual Disk
-      - **IO Policy** - String - IO Policy of Virtual Disk
-      - **Physical Drive Cache** - String - Physical Drive Cache Mode of Virtual Disk
-      - **Encryption** - String - Encryption Mode of Virtual Disk
-    - **patrol_read** - Hash - Patrol read information
-      - **PR Mode** - String - Mode
-      - **PR Execution Delay** - Integer - Execution delay in hours
-      - **PR iterations completed** - Integer - How many times patrol read ran?
-      - **PR Next Start time** - DateTime - Next time patrol read will run
-      - **PR on SSD** - Boolean - Run on SSDs?
-      - **PR Current State** - String - Is it running or stopped?
-      - **PR Excluded VDs** - String - VDs that will not run patrol read
-      - **PR MaxConcurrentPd** - Integer - Maximum number of concurrent PDs
-    - **consistency_check** - Hash - Consistency check information
-      - **CC Operation Mode** - String - Mode
-      - **CC Execution Delay** - Integer - Execution delay in hours
-      - **CC Next Starttime** - DateTime - Next time patrol read will run
-      - **CC Current State** - String - Is it running or stopped?
-      - **CC Number of iterations** - Integer - How many times patrol read ran?
-      - **CC Number of VD completed** - Integer - Number of VDs completed
-      - **CC Excluded VDs** - String - VDs that will not run patrol read
+    - **driver_name** - String - Kernel driver name
+    - **device_interface** - String - Device interface type
+    - **drive_groups_count** - Integer - Number of drive groups
+    - **physical_drive_count** - Integer - Number of physical drives
+    - **storcli_tool** - String - Path to the `storcli`/`perccli` binary used for this controller
+    - **drive_groups** - Hash[Drive Group ID] - drive groups on this controller
+      - **virtual_disks** - Hash[Virtual Disk ID] - virtual disks in this drive group
+        - **name** - String - storcli path (e.g. `/c0/v0`)
+        - **raid_level** - String - RAID type (e.g. `RAID6`, `RAID1`)
+        - **state** - String - Virtual disk state (e.g. `Optl`)
+        - **size** - String - Virtual disk size
+        - **os_drive_name** - String - OS device name (e.g. `/dev/sda`)
+        - **properties** - Hash - Virtual disk cache and policy settings
+          - **stripe_size** - String - Strip size (e.g. `256 KB`)
+          - **span_depth** - Integer - Span depth
+          - **number_of_drives_per_span** - Integer - Drives per span
+          - **current_write_policy** - String - `WriteBack`, `WriteThrough`, or `AlwaysWriteBack`
+          - **current_read_policy** - String - `ReadAhead` or `ReadAheadNone`
+          - **io_policy** - String - `Direct` or `Cached`
+          - **disk_cache_policy** - String - `default`, `on`, or `off`
+          - **encryption** - String - Encryption mode
+          - **exposed_to_os** - String - Whether the VD is visible to the OS
+          - **unmap_enabled** - String - Whether UNMAP/TRIM is enabled
+          - **data_protection** - String - Data protection setting
+    - **controller_settings** - Hash - Raw controller property key/value pairs
+    - **bbu_info** - Hash - Battery Backup Unit information (absent if no BBU)
+      - **state** - String - BBU state
+      - **type** - String - BBU model/type
+      - **replacement_needed** - Boolean - Whether the battery needs replacing
+      - **learn_cycle_active** - Boolean - Whether a learn cycle is in progress
+    - **patrol_read** - Hash - Patrol read schedule (absent if unsupported)
+      - **mode** - String - Patrol read mode (e.g. `Auto`)
+      - **execution_delay** - Integer - Delay between runs in hours
+      - **on_ssd** - Boolean - Whether patrol read runs on SSDs
+      - **next_start_time** - String - Next scheduled run (`YYYY-MM-DD HH:MM:SS`)
+    - **consistency_check** - Hash - Consistency check schedule (absent if unsupported)
+      - **operation_mode** - String - CC mode (e.g. `Concurrent`)
+      - **execution_delay** - Integer - Delay between runs in hours
+      - **next_start_time** - String - Next scheduled run (`YYYY-MM-DD HH:MM:SS`)
+
+The rough structure of the fact is:
+
+```yaml
+# When no hardware is detected or fact collection fails:
+megaraid:
+  present: false
+
+# When hardware is present:
+megaraid:
+  present: true
+  number_of_controllers: 1
+  controllers:
+    '0':
+      product_name: 'MegaRAID 9560-8i 4GB'
+      serial_number: 'SV123456789'
+      fw_package_build: '24.21.0-0155'
+      fw_version: '1.460.01-8433'
+      bios_version: '7.11.00.3_4.20.00.0000'
+      driver_name: 'megaraid_sas'
+      device_interface: 'PCI-E'
+      drive_groups_count: 1
+      physical_drive_count: 8
+      storcli_tool: '/usr/bin/storcli64'
+      drive_groups:
+        '0':
+          virtual_disks:
+            '0':
+              name: '/c0/v0'
+              raid_level: 'RAID6'
+              state: 'Optl'
+              size: '10.914 TB'
+              os_drive_name: '/dev/sda'
+              properties:
+                stripe_size: '256 KB'
+                span_depth: 1
+                number_of_drives_per_span: 8
+                current_write_policy: 'WriteBack'
+                current_read_policy: 'ReadAhead'
+                io_policy: 'Direct'
+                disk_cache_policy: 'default'
+                encryption: 'None'
+                exposed_to_os: 'Yes'
+                unmap_enabled: 'No'
+                data_protection: 'Disabled'
+      controller_settings:
+        'Memory Correctable Errors': 0
+        'Memory Uncorrectable Errors': 0
+      bbu_info:
+        state: 'Optimal'
+        type: 'BBU'
+        replacement_needed: false
+        learn_cycle_active: false
+      patrol_read:
+        mode: 'Auto'
+        execution_delay: 168
+        on_ssd: false
+        next_start_time: '2026-03-14 03:00:00'
+      consistency_check:
+        operation_mode: 'Concurrent'
+        execution_delay: 168
+        next_start_time: '2026-03-14 03:00:00'
+```
 
 ## Limitations
 
@@ -103,6 +177,8 @@ StorCli SAS Customization Utility Ver 007.2508.0000.0000 Feb 27, 2023
 ```
 
 Older versions may work, but may not...
+
+This module purposefully does not manage `storcli`/`perccli2` as there is no obvious way to reconcile the controller numbers. Each one starts counting from zero.
 
 ## Development
 
