@@ -1,6 +1,6 @@
 # puppet-storcli
 
-Puppet module to generate facts with types and providers to manage LSI MegaRAID controllers.
+Puppet module to generate facts with defined types to manage LSI MegaRAID controllers.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
@@ -12,6 +12,10 @@ Puppet module to generate facts with types and providers to manage LSI MegaRAID 
   - [Setup](#setup)
     - [Setup Requirements](#setup-requirements)
   - [Usage](#usage)
+    - [Simple (apply defaults to all controllers)](#simple-apply-defaults-to-all-controllers)
+    - [Per-controller configuration via Hiera](#per-controller-configuration-via-hiera)
+    - [Using defined types directly in Puppet](#using-defined-types-directly-in-puppet)
+    - [Targeting all controllers](#targeting-all-controllers)
   - [Reference](#reference)
     - [Facts](#facts)
   - [Limitations](#limitations)
@@ -19,7 +23,20 @@ Puppet module to generate facts with types and providers to manage LSI MegaRAID 
 
 ## Description
 
-This puppet module generate facts and provides types and providers to manage LSI MegaRAID controllers.
+This puppet module generates facts and provides defined types to manage
+LSI MegaRAID and Dell PERC RAID controllers.
+
+Three defined types cover the configurable areas:
+
+| Type | Purpose |
+|------|---------|
+| `storcli::controller` | General controller settings (rebuild, time, perf, NCQ, cache, alarm, SMART) |
+| `storcli::patrolread` | Patrol read scheduling |
+| `storcli::consistencycheck` | Consistency check scheduling |
+
+By default the module applies battle-tested defaults to every detected
+controller.  Power users can disable the automatic sweep and drive each
+controller individually.
 
 ## Setup
 
@@ -31,15 +48,91 @@ The package needs to be available from some repository to be installed.
 
 ## Usage
 
+### Simple (apply defaults to all controllers)
+
 ```puppet
 include storcli
 ```
 
-Optionally, to skip over configuration of the card.
+This installs the package, discovers every MegaRAID/PERC controller, and
+applies the module's defaults to all of them.  The defaults are designed
+to be safe and appropriate for most environments.
+
+### Per-controller configuration via Hiera
+
+Disable the automatic sweep and supply a hash of defined-type resources:
 
 ```yaml
+# Disable the uniform "apply to all" behaviour
 storcli::configure_settings: false
+
+# Configure each controller individually
+storcli::controllers:
+  'controller_0':
+    controller: 0
+    ncq: true
+    perfmode: 0
+    alarm: true
+    sync_time: true
+    use_utc: true
+  'controller_1':
+    controller: 1
+    ncq: false
+    perfmode: 1
+    alarm: false
+
+storcli::patrolreads:
+  'patrol_all':
+    controller: 'all'
+    mode: auto
+    delay: 336
+    rate: 30
+    includessds: false
+
+storcli::consistencychecks:
+  'cc_all':
+    controller: 'all'
+    mode: conc
+    delay: 672
+    rate: 30
 ```
+
+### Using defined types directly in Puppet
+
+You can use the defined types in your own manifests.  Each setting
+parameter is optional — set only what you need; everything else remains
+unmanaged.
+
+```puppet
+# Only manage NCQ and alarm on controller 0
+storcli::controller { 'my_c0_settings':
+  controller => 0,
+  ncq        => true,
+  alarm      => false,
+}
+
+# Set patrol read on controller 1
+storcli::patrolread { 'pr_c1':
+  controller => 1,
+  mode       => 'auto',
+  delay      => 168,
+  rate       => 50,
+}
+```
+
+### Targeting all controllers
+
+Pass `controller => 'all'` to target every detected controller at once:
+
+```puppet
+storcli::controller { 'ncq_everywhere':
+  controller => 'all',
+  ncq        => true,
+}
+```
+
+If you want *different* settings per controller, set each one explicitly.
+The `'all'` target always applies the same values to every controller.
 
 ## Reference
 
@@ -51,6 +144,7 @@ See [REFERENCE](REFERENCE.md) for all other reference documentation.
 
 - **storcli** - structured fact
   - **present** - Boolean - `true` if a MegaRAID/PERC controller is detected (checks `/sys/bus/pci/drivers/megaraid_sas` and `/sys/bus/pci/drivers/mpt3sas`)
+  - **storcli_tool** - String - Path to the primary `storcli`/`perccli` binary (absent when `present` is `false`)
   - **number_of_controllers** - Integer - number of controllers found
   - **controllers** - Hash[Controller ID] - per-controller data (absent when `present` is `false`)
     - **product_name** - String - Product name
@@ -101,11 +195,22 @@ See [REFERENCE](REFERENCE.md) for all other reference documentation.
 
 ## Limitations
 
-For now, this module only provides a custom fact and ways to deal with patrol read and consistency check.
+This module provides a custom fact and defined types for managing
+controller-level settings, patrol read scheduling, and consistency
+check scheduling.
 
 This module does not provide the `storcli` or `perccli` packages, you must do that yourself.  If the `package` provider can load them, they will be installed automatically.
 
-The card configuration has not been tested on systems with multiple MegaRAID cards.  It should work, but it will set all cards to identical values.
+When `configure_settings` is true (the default), every detected
+controller receives the same configuration.  For per-controller
+settings, set `configure_settings` to false and use the defined types
+directly or populate the Hiera hashes (`storcli::controllers`,
+`storcli::patrolreads`, `storcli::consistencychecks`).
+
+Settings applied by the `exec` resources will propagate storcli failures
+back to Puppet — for example, attempting to enable WriteBack on a
+controller without a battery backup unit will cause the Puppet run to
+report a failure so the sysadmin can investigate.
 
 Minimum `storcli`/`perccli` versions:
 
