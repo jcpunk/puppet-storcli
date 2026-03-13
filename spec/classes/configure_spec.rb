@@ -5,7 +5,7 @@ require 'spec_helper'
 describe 'storcli::configure' do
   on_supported_os.each do |os, os_facts|
     context "on #{os}" do
-      context 'without storcli_tool' do
+      context 'without controllers detected' do
         let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => {} } }) }
 
         it { is_expected.to compile }
@@ -14,7 +14,7 @@ describe 'storcli::configure' do
         it { is_expected.to have_storcli__consistencycheck_resource_count(0) }
       end
 
-      context 'without storcli_tool, with management' do
+      context 'without controllers detected, with management' do
         let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => {} } }) }
         let(:params) do
           {
@@ -26,8 +26,8 @@ describe 'storcli::configure' do
         it { is_expected.to have_storcli__controller_resource_count(0) }
       end
 
-      context 'with storcli_tool, no management' do
-        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'storcli_tool' => '/usr/local/sbin/storcli64', 'controllers' => {} } }) }
+      context 'with controllers detected, no management' do
+        let(:facts) { os_facts.merge({ 'storcli' => { 'present' => true, 'controllers' => {} } }) }
         let(:params) do
           {
             'configure_settings' => false,
@@ -40,14 +40,13 @@ describe 'storcli::configure' do
         it { is_expected.to have_storcli__consistencycheck_resource_count(0) }
       end
 
-      context 'with storcli_tool, and management of config - defaults' do
+      context 'with controllers detected, and management of config - defaults' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -64,14 +63,13 @@ describe 'storcli::configure' do
         it { is_expected.to have_storcli__consistencycheck_resource_count(2) }
       end
 
-      context 'with storcli_tool, and management of config - autorebuild = true' do
+      context 'with controllers detected, and management of config - autorebuild = true' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -90,14 +88,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_1_c1').with(autorebuild: true) }
       end
 
-      context 'with storcli_tool, and management of config - autorebuild = false' do
+      context 'with controllers detected, and management of config - autorebuild = false' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -114,14 +111,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_1_c1').with(autorebuild: false) }
       end
 
-      context 'with storcli_tool, and management of config - rebuildrate=50' do
+      context 'with controllers detected, and management of config - rebuildrate=50' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -138,14 +134,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_1_c1').with(rebuildrate: 50) }
       end
 
-      context 'with storcli_tool, manage_rebuild = false' do
+      context 'with controllers detected, manage_rebuild = false' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -161,14 +156,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_0_c0').without_autorebuild }
       end
 
-      context 'with storcli_tool, sync_time_to_controllers = false' do
+      context 'with controllers detected, sync_time_to_controllers = false' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -184,14 +178,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_0_c0').without_sync_time }
       end
 
-      context 'with storcli_tool, sync_time = true, UTC' do
+      context 'with controllers detected, sync_time = true, UTC' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -208,14 +201,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_1_c1').with(sync_time: true, use_utc: true) }
       end
 
-      context 'with storcli_tool, sync_time = true, local time' do
+      context 'with controllers detected, sync_time = true, local time' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -232,14 +224,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_1_c1').with(sync_time: true, use_utc: false) }
       end
 
-      context 'with storcli_tool, perfmode=0' do
+      context 'with controllers detected, perfmode=0' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -255,14 +246,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_1_c1').with(perfmode: 0) }
       end
 
-      context 'with storcli_tool, ncq = true' do
+      context 'with controllers detected, ncq = true' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -278,14 +268,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_1_c1').with(ncq: true) }
       end
 
-      context 'with storcli_tool, ncq = false' do
+      context 'with controllers detected, ncq = false' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -301,14 +290,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_1_c1').with(ncq: false) }
       end
 
-      context 'with storcli_tool, manage_alarm = false' do
+      context 'with controllers detected, manage_alarm = false' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 1,
-                             'controllers' => { 0 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -324,14 +312,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_0_c0').without_alarm }
       end
 
-      context 'with storcli_tool, alarm = true' do
+      context 'with controllers detected, alarm = true' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -348,14 +335,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_1_c1').with(alarm: true) }
       end
 
-      context 'with storcli_tool, alarm = false' do
+      context 'with controllers detected, alarm = false' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
-                             'controllers' => { 0 => {}, 1 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' }, 1 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -372,14 +358,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_controller('controller_1_c1').with(alarm: false) }
       end
 
-      context 'with storcli_tool, patrolread mode=off' do
+      context 'with controllers detected, patrolread mode=off' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 1,
-                             'controllers' => { 0 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -395,14 +380,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_patrolread('controller_0_c0').with(mode: 'off') }
       end
 
-      context 'with storcli_tool, patrolread mode=auto' do
+      context 'with controllers detected, patrolread mode=auto' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 1,
-                             'controllers' => { 0 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -429,14 +413,13 @@ describe 'storcli::configure' do
         }
       end
 
-      context 'with storcli_tool, consistencycheck mode=off' do
+      context 'with controllers detected, consistencycheck mode=off' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 1,
-                             'controllers' => { 0 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end
@@ -452,14 +435,13 @@ describe 'storcli::configure' do
         it { is_expected.to contain_storcli_consistencycheck('controller_0_c0').with(mode: 'off') }
       end
 
-      context 'with storcli_tool, consistencycheck mode=conc' do
+      context 'with controllers detected, consistencycheck mode=conc' do
         let(:facts) do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 1,
-                             'controllers' => { 0 => {} },
+                             'controllers' => { 0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' } },
                            },
                          })
         end

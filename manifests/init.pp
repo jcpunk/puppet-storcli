@@ -27,11 +27,6 @@
 # @param package_ensure
 #   Package ensure value: 'present', 'latest', or a specific version.
 #
-# @param link_storcli_to
-#   The official package often puts the binary into /opt/MegaRAID/storcli
-#   which is not usually in `$PATH`.  This parameter creates a symlink so
-#   the binary is found automatically.
-#
 # @param configure_settings
 #   Master switch.  When true the module applies every controller_*
 #   parameter uniformly to all detected controllers.  Set to false when
@@ -118,7 +113,6 @@ class storcli (
   Variant[Boolean, Enum['true', 'false']] $package_manage,
   Array[String] $package_name,
   String        $package_ensure,
-  Stdlib::Absolutepath $link_storcli_to,
   Boolean         $configure_settings,
   Boolean         $controller_manage_rebuild,
   Boolean         $controller_autorebuild,

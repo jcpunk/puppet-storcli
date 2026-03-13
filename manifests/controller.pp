@@ -61,7 +61,7 @@
 #
 define storcli::controller (
   Variant[Integer[0], Enum['all']] $controller,
-  Optional[String[1]]              $storcli_cmd         = $facts.dig('storcli', 'storcli_tool'),
+  Optional[String[1]]              $storcli_cmd         = undef,
   Optional[Boolean]                $autorebuild         = undef,
   Optional[Integer[0, 100]]        $rebuildrate         = undef,
   Optional[Boolean]                $sync_time           = undef,
@@ -74,18 +74,24 @@ define storcli::controller (
   Optional[Boolean]                $alarm               = undef,
   Optional[Integer[0, 65535]]      $smartpollinterval   = undef,
 ) {
-  if $storcli_cmd {
-    $_controller_ids = $controller ? {
-      'all'   => pick($facts.dig('storcli', 'controllers'), {}).keys,
-      default => [String($controller)],
-    }
+  $_controllers = pick($facts.dig('storcli', 'controllers'), {})
+  $_controller_ids = $controller ? {
+    'all'   => $_controllers.keys,
+    default => [String($controller)],
+  }
 
-    $_controller_ids.each |$_id| {
+  $_controller_ids.each |$_id| {
+    # Determine the storcli binary: explicit param, per-controller fact, or skip
+    $_cmd = $storcli_cmd ? {
+      undef   => $_controllers.dig($_id, 'storcli_tool'),
+      default => $storcli_cmd,
+    }
+    if $_cmd {
       # Build a hash of only the properties the user actually set (non-undef).
       # This lets us pass through exactly what was requested to the native type.
       $_base = {
         'controller'  => Integer($_id),
-        'storcli_cmd' => $storcli_cmd,
+        'storcli_cmd' => $_cmd,
       }
       $_optional = {
         'autorebuild'         => $autorebuild,

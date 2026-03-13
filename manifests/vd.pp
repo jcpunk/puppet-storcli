@@ -54,17 +54,26 @@
 define storcli::vd (
   Variant[Integer[0], Enum['all']]           $controller,
   Variant[Integer[0], Enum['all']]           $virtual_disk,
-  Optional[String[1]]                        $storcli_cmd  = $facts.dig('storcli', 'storcli_tool'),
+  Optional[String[1]]                        $storcli_cmd  = undef,
   Optional[Enum['wt', 'wb', 'awb']]         $write_policy = undef,
   Optional[Enum['ra', 'nora']]              $read_policy  = undef,
   Optional[Enum['direct', 'cached']]        $io_policy    = undef,
   Optional[Enum['on', 'off', 'default']]    $disk_cache   = undef,
 ) {
-  if $storcli_cmd {
+  $_controllers = pick($facts.dig('storcli', 'controllers'), {})
+  # For VD, derive tool from first matching controller or first available
+  $_cmd = $storcli_cmd ? {
+    undef   => $controller ? {
+      'all'   => $_controllers.values.reduce(undef) |$memo, $c| { if $memo { $memo } else { $c['storcli_tool'] } },
+      default => $_controllers.dig(String($controller), 'storcli_tool'),
+    },
+    default => $storcli_cmd,
+  }
+  if $_cmd {
     $_base = {
       'controller'   => $controller,
       'virtual_disk' => $virtual_disk,
-      'storcli_cmd'  => $storcli_cmd,
+      'storcli_cmd'  => $_cmd,
     }
     $_optional = {
       'write_policy' => $write_policy,

@@ -97,10 +97,11 @@ class storcli::configure (
   # lint:endignore
 ) inherits storcli {
   if $configure_settings {
-    $_storcli_tool = $facts.dig('storcli', 'storcli_tool')
+    $_controllers = pick($facts.dig('storcli', 'controllers'), {})
 
-    if $_storcli_tool {
-      pick($facts.dig('storcli', 'controllers'), {}).keys.each |$x| {
+    if !$_controllers.empty {
+      $_controllers.each |$x, $_ctrl_data| {
+        $_storcli_tool = $_ctrl_data['storcli_tool']
         $_autorebuild    = $controller_manage_rebuild ? { true => $controller_autorebuild, default => undef }
         $_rebuildrate    = $controller_manage_rebuild ? { true => $controller_rebuildrate, default => undef }
         $_sync_time      = $sync_time_to_controllers ? { true => true, default => undef }

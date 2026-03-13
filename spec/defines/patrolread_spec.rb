@@ -11,7 +11,6 @@ describe 'storcli::patrolread' do
         os_facts.merge({
                          'storcli' => {
                            'present' => true,
-                           'storcli_tool' => '/usr/local/sbin/storcli64',
                            'number_of_controllers' => 1,
                            'controllers' => {
                              0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' },
@@ -144,7 +143,6 @@ describe 'storcli::patrolread' do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 2,
                              'controllers' => {
                                0 => { 'storcli_tool' => '/usr/local/sbin/storcli64' },

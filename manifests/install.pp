@@ -1,14 +1,13 @@
 # @summary
-#   This class handles storcli packages and binary link.
+#   This class handles storcli packages.
 #
 # @api private
 #
 class storcli::install (
   # lint:ignore:parameter_types
-  $package_manage  = $storcli::package_manage,
-  $package_name    = $storcli::package_name,
-  $package_ensure  = $storcli::package_ensure,
-  $link_storcli_to = $storcli::link_storcli_to,
+  $package_manage = $storcli::package_manage,
+  $package_name   = $storcli::package_name,
+  $package_ensure = $storcli::package_ensure,
   # lint:endignore
 ) inherits storcli {
   assert_private()
@@ -17,16 +16,6 @@ class storcli::install (
   if Boolean($package_manage) {
     package { $package_name:
       ensure => $package_ensure,
-    }
-
-    $_storcli_tool = $facts.dig('storcli', 'storcli_tool')
-    if $_storcli_tool and !$_storcli_tool.empty {
-      unless $_storcli_tool == $link_storcli_to {
-        file { $link_storcli_to:
-          ensure => 'link',
-          target => $_storcli_tool,
-        }
-      }
     }
   }
 }

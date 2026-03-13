@@ -45,20 +45,25 @@
 define storcli::consistencycheck (
   Variant[Integer[0], Enum['all']] $controller,
   Enum['off', 'seq', 'conc']       $mode,
-  Optional[String[1]]              $storcli_cmd = $facts.dig('storcli', 'storcli_tool'),
+  Optional[String[1]]              $storcli_cmd = undef,
   Optional[Integer[0]]             $delay       = undef,
   Optional[Integer[0, 100]]        $rate        = undef,
 ) {
-  if $storcli_cmd {
-    $_controller_ids = $controller ? {
-      'all'   => pick($facts.dig('storcli', 'controllers'), {}).keys,
-      default => [String($controller)],
-    }
+  $_controllers = pick($facts.dig('storcli', 'controllers'), {})
+  $_controller_ids = $controller ? {
+    'all'   => $_controllers.keys,
+    default => [String($controller)],
+  }
 
-    $_controller_ids.each |$_id| {
+  $_controller_ids.each |$_id| {
+    $_cmd = $storcli_cmd ? {
+      undef   => $_controllers.dig($_id, 'storcli_tool'),
+      default => $storcli_cmd,
+    }
+    if $_cmd {
       $_base = {
         'controller'  => Integer($_id),
-        'storcli_cmd' => $storcli_cmd,
+        'storcli_cmd' => $_cmd,
         'mode'        => $mode,
       }
       $_optional = {

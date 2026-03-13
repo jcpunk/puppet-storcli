@@ -8,7 +8,6 @@ describe 'storcli' do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 0,
                              'controllers' => {},
                            },
@@ -53,35 +52,6 @@ describe 'storcli' do
         end
       end
 
-      context 'with card detected, non-default link target' do
-        let(:facts) do
-          os_facts.merge({
-                           'storcli' => {
-                             'present' => true,
-                             'storcli_tool' => '/non/default/storcli',
-                             'number_of_controllers' => 0,
-                             'controllers' => {},
-                           },
-                         })
-        end
-
-        it { is_expected.to compile }
-
-        it { is_expected.to contain_class('storcli::install') }
-
-        describe 'storcli::install' do
-          let(:params) { { link_storcli_to: '/tmp/sbin' } }
-
-          describe 'is storcli binary symlinked to target location' do
-            it {
-              is_expected.to contain_file('/tmp/sbin') \
-                .with_ensure('link') \
-                .with_target('/non/default/storcli')
-            }
-          end
-        end
-      end
-
       context 'with card not detected' do
         let(:facts) do
           os_facts.merge({
@@ -111,7 +81,6 @@ describe 'storcli' do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 1,
                              'controllers' => { 0 => {} },
                            },
@@ -138,7 +107,6 @@ describe 'storcli' do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 1,
                              'controllers' => { 0 => {} },
                            },
@@ -166,7 +134,6 @@ describe 'storcli' do
           os_facts.merge({
                            'storcli' => {
                              'present' => true,
-                             'storcli_tool' => '/usr/local/sbin/storcli64',
                              'number_of_controllers' => 1,
                              'controllers' => { 0 => {} },
                            },
