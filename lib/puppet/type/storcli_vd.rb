@@ -9,21 +9,20 @@ Puppet::Type.newtype(:storcli_vd) do
     `virtual_disk` accept the string 'all' to target every detected item,
     making it easy to enforce a fleet-wide policy.
 
+    The controller and VD IDs are derived from the title when it matches
+    `/c<ID>/v<ID>`.  If unset and not derivable, they default to 'all'.
+
     If a setting cannot be applied (e.g. requesting write-back without a BBU),
     storcli itself will report the error and Puppet will flag the resource as
     failed so sysadmins can see it in their reports.
 
     @example Set write-back cache on all VDs of controller 0
-      storcli_vd { 'all_vds_c0':
-        controller   => 0,
-        virtual_disk => 'all',
+      storcli_vd { '/c0/vall':
         write_policy => 'wb',
       }
 
-    @example Uniform policy across every VD on every controller
+    @example Uniform policy across every VD on every controller (default)
       storcli_vd { 'fleet_policy':
-        controller   => 'all',
-        virtual_disk => 'all',
         write_policy => 'wt',
         read_policy  => 'ra',
         io_policy    => 'direct',
@@ -32,18 +31,27 @@ Puppet::Type.newtype(:storcli_vd) do
 
     @example Target a single VD
       storcli_vd { '/c0/v1':
-        controller   => 0,
-        virtual_disk => 1,
         write_policy => 'awb',
       }
   DOC
 
   newparam(:name, namevar: true) do
-    desc 'Resource title.'
+    desc 'Resource title. When it matches "/c<ID>/v<ID>" both controller and virtual_disk are derived automatically.'
   end
 
   newparam(:controller) do
-    desc "Integer controller ID (e.g. 0) or 'all' to target every detected controller."
+    desc "Integer controller ID (e.g. 0) or 'all' to target every detected controller. " \
+         "Derived from the title when it matches /c<ID>. Defaults to 'all' when unset."
+    defaultto do
+      name = resource[:name].to_s
+      if name =~ %r{/c(\d+)(?:/|$)}
+        Regexp.last_match(1).to_i
+      elsif name =~ %r{/call(?:/|$)}
+        'all'
+      else
+        'all'
+      end
+    end
     validate do |value|
       unless value.to_s =~ %r{^\d+$} || value.to_s == 'all'
         raise Puppet::Error, "controller must be a non-negative integer or 'all'"
@@ -53,7 +61,18 @@ Puppet::Type.newtype(:storcli_vd) do
   end
 
   newparam(:virtual_disk) do
-    desc "Integer VD ID (e.g. 0) or 'all' to target every VD on the controller(s)."
+    desc "Integer VD ID (e.g. 0) or 'all' to target every VD on the controller(s). " \
+         "Derived from the title when it matches /v<ID>. Defaults to 'all' when unset."
+    defaultto do
+      name = resource[:name].to_s
+      if name =~ %r{/v(\d+)(?:/|$)}
+        Regexp.last_match(1).to_i
+      elsif name =~ %r{/vall(?:/|$)}
+        'all'
+      else
+        'all'
+      end
+    end
     validate do |value|
       unless value.to_s =~ %r{^\d+$} || value.to_s == 'all'
         raise Puppet::Error, "virtual_disk must be a non-negative integer or 'all'"
@@ -91,11 +110,6 @@ Puppet::Type.newtype(:storcli_vd) do
   newproperty(:disk_cache) do
     desc "Physical disk cache: 'on', 'off', or 'default' (use disk's built-in setting)."
     newvalues(:on, :off, :default)
-  end
-
-  validate do
-    raise Puppet::Error, 'controller is required' unless self[:controller]
-    raise Puppet::Error, 'virtual_disk is required' unless self[:virtual_disk]
   end
 
   autorequire(:package) do

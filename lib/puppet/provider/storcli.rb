@@ -61,7 +61,7 @@ class Puppet::Provider::Storcli < Puppet::Provider
   # Run `storcli_cmd args` and return the parsed JSON hash, or nil on failure.
   def storcli_json(args)
     cmd = @resource[:storcli_cmd]
-    raw = Puppet::Util::Execution.execute("#{cmd} #{args}", failonfail: false)
+    raw = Puppet::Util::Execution.execute("cd /tmp && #{cmd} #{args}", failonfail: false)
     return nil if raw.nil? || raw.empty?
 
     JSON.parse(raw)
@@ -109,7 +109,7 @@ class Puppet::Provider::Storcli < Puppet::Provider
   def storcli_set_for(cid, args)
     cmd = @resource[:storcli_cmd]
     output = Puppet::Util::Execution.execute(
-      "#{cmd} /c#{cid} #{args} nolog",
+      "cd /tmp && #{cmd} /c#{cid} #{args} nolog",
       failonfail: true,
     )
     Puppet.debug("storcli set: #{cmd} /c#{cid} #{args} => #{output}")
@@ -124,7 +124,7 @@ class Puppet::Provider::Storcli < Puppet::Provider
   def storcli_vd_set_for(cid, vid, args)
     cmd = @resource[:storcli_cmd]
     output = Puppet::Util::Execution.execute(
-      "#{cmd} /c#{cid}/v#{vid} #{args} nolog",
+      "cd /tmp && #{cmd} /c#{cid}/v#{vid} #{args} nolog",
       failonfail: true,
     )
     Puppet.debug("storcli set: #{cmd} /c#{cid}/v#{vid} #{args} => #{output}")

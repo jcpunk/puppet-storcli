@@ -7,21 +7,39 @@ Puppet::Type.newtype(:storcli_consistencycheck) do
 
     Uses storcli/perccli JSON output for reliable idempotent management.
 
+    The controller ID is derived from the title when it matches `/c<ID>`.
+    If unset and not derivable from the title, it defaults to 'all'.
+
     @example Enable concurrent consistency checks on controller 0
       storcli_consistencycheck { '/c0':
-        controller => 0,
         mode       => 'conc',
         delay      => 672,
         rate       => 30,
       }
+
+    @example Target all controllers
+      storcli_consistencycheck { 'fleet_cc':
+        mode => 'conc',
+      }
   DOC
 
   newparam(:name, namevar: true) do
-    desc 'Resource title.'
+    desc 'Resource title. When it matches "/c<ID>" the controller is derived automatically.'
   end
 
   newparam(:controller) do
-    desc "Integer controller ID (e.g. 0) or 'all' to target every detected controller."
+    desc "Integer controller ID (e.g. 0) or 'all' to target every detected controller. " \
+         "Derived from the title when it matches /c<ID>. Defaults to 'all' when unset."
+    defaultto do
+      name = resource[:name].to_s
+      if name =~ %r{/c(\d+)(?:/|$)}
+        Regexp.last_match(1).to_i
+      elsif name =~ %r{/call(?:/|$)}
+        'all'
+      else
+        'all'
+      end
+    end
     validate do |value|
       unless value.to_s =~ %r{^\d+$} || value.to_s == 'all'
         raise Puppet::Error, "controller must be a non-negative integer or 'all'"
@@ -74,7 +92,6 @@ Puppet::Type.newtype(:storcli_consistencycheck) do
   end
 
   validate do
-    raise Puppet::Error, 'controller is required' unless self[:controller]
     raise Puppet::Error, 'mode is required' unless self[:mode]
   end
 

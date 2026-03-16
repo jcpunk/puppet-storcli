@@ -11,20 +11,39 @@ Puppet::Type.newtype(:storcli_controller) do
     Each property is independently managed — leave a property unset to
     skip management of that setting.
 
+    The controller ID is derived from the title when it matches `/c<ID>`.
+    If unset and not derivable from the title, it defaults to 'all'.
+
     @example Enable NCQ and set rebuild rate on controller 0
       storcli_controller { '/c0':
         autorebuild    => true,
         rebuildrate    => 60,
         ncq            => true,
       }
+
+    @example Target all controllers (default when title is not /c<ID>)
+      storcli_controller { 'fleet_settings':
+        ncq => true,
+      }
   DOC
 
   newparam(:name, namevar: true) do
-    desc 'Resource title. By convention use "/c<ID>" but any unique string works.'
+    desc 'Resource title. When it matches "/c<ID>" the controller is derived automatically.'
   end
 
   newparam(:controller) do
-    desc "Integer controller ID (e.g. 0) or 'all' to target every detected controller."
+    desc "Integer controller ID (e.g. 0) or 'all' to target every detected controller. " \
+         "Derived from the title when it matches /c<ID>. Defaults to 'all' when unset."
+    defaultto do
+      name = resource[:name].to_s
+      if name =~ %r{/c(\d+)(?:/|$)}
+        Regexp.last_match(1).to_i
+      elsif name =~ %r{/call(?:/|$)}
+        'all'
+      else
+        'all'
+      end
+    end
     validate do |value|
       unless value.to_s =~ %r{^\d+$} || value.to_s == 'all'
         raise Puppet::Error, "controller must be a non-negative integer or 'all'"
@@ -143,10 +162,6 @@ Puppet::Type.newtype(:storcli_controller) do
       raise Puppet::Error, 'time_tolerance must be a non-negative integer' unless value.to_s =~ %r{^\d+$}
     end
     munge { |v| v.to_i }
-  end
-
-  validate do
-    raise Puppet::Error, 'controller is required' unless self[:controller]
   end
 
   autorequire(:package) do
