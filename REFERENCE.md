@@ -98,9 +98,9 @@ Default: value of storcli fact `present` key.
 
 ##### <a name="-storcli--package_name"></a>`package_name`
 
-Data type: `Array[String]`
+Data type: `String`
 
-Specifies the storcli package to manage.
+Specifies the storcli/perccli package name to manage.
 
 ##### <a name="-storcli--package_ensure"></a>`package_ensure`
 
@@ -1119,9 +1119,7 @@ Puppet will usually discover the appropriate provider for your platform.
 
 ##### <a name="-storcli_consistencycheck--storcli_cmd"></a>`storcli_cmd`
 
-Path to the storcli or perccli binary.
-
-Default value: `/usr/local/sbin/storcli`
+Path to the storcli or perccli binary. Defaults to the tool discovered by the storcli fact.
 
 ### <a name="storcli_controller"></a>`storcli_controller`
 
@@ -1229,9 +1227,7 @@ usually discover the appropriate provider for your platform.
 
 ##### <a name="-storcli_controller--storcli_cmd"></a>`storcli_cmd`
 
-Path to the storcli or perccli binary.
-
-Default value: `/usr/local/sbin/storcli`
+Path to the storcli or perccli binary. Defaults to the tool discovered by the storcli fact.
 
 ##### <a name="-storcli_controller--time_tolerance"></a>`time_tolerance`
 
@@ -1331,9 +1327,7 @@ usually discover the appropriate provider for your platform.
 
 ##### <a name="-storcli_patrolread--storcli_cmd"></a>`storcli_cmd`
 
-Path to the storcli or perccli binary.
-
-Default value: `/usr/local/sbin/storcli`
+Path to the storcli or perccli binary. Defaults to the tool discovered by the storcli fact.
 
 ### <a name="storcli_vd"></a>`storcli_vd`
 
@@ -1431,9 +1425,7 @@ discover the appropriate provider for your platform.
 
 ##### <a name="-storcli_vd--storcli_cmd"></a>`storcli_cmd`
 
-Path to the storcli or perccli binary.
-
-Default value: `/usr/local/sbin/storcli`
+Path to the storcli or perccli binary. Defaults to the tool discovered by the storcli fact.
 
 ##### <a name="-storcli_vd--virtual_disk"></a>`virtual_disk`
 
