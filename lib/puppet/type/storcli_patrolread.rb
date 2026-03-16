@@ -138,6 +138,16 @@ Puppet::Type.newtype(:storcli_patrolread) do
     end
   end
 
+  newparam(:ignore_unsupported) do
+    desc <<-DESC
+      When true, silently downgrades errors from unsupported settings to
+      warnings instead of failing the resource.  Useful for fleet-wide
+      defaults across heterogeneous hardware.
+    DESC
+    newvalues(:true, :false)
+    defaultto :false
+  end
+
   validate do
     raise Puppet::Error, 'mode is required' unless self[:mode]
   end

@@ -33,7 +33,8 @@ managing MegaRAID and PERC RAID controllers via `storcli`/`perccli`.
 - This module does not provide the `storcli` or `perccli` packages.
   The `storcli` class can install them if the package is available in a configured repository (see [Package management](#package-management)).
 - Not all controllers support every property.  The `alarm` property is silently skipped when the controller reports `ABSENT` alarm hardware.
-  Other unsupported properties surface as Puppet failures so misconfigurations are visible during the run.
+  Other unsupported properties surface as Puppet failures by default so misconfigurations are visible during the run.
+  Set `ignore_unsupported => true` to downgrade these to warnings (see [Heterogeneous fleets](#heterogeneous-fleets)).
 - Mixing `all` with specifically identified controllers / virtual drives, will result in flapping and ambigious behavior.
 - `storcli2`/`perccli2` are not supported — both tools start controller numbering at zero, making reconciliation with existing resources ambiguous.
 
@@ -212,6 +213,39 @@ storcli_consistencycheck { 'default':
   rate  => 30,
 }
 ```
+
+---
+
+## Heterogeneous fleets
+
+When managing a mix of controller models (e.g. 9560 with BBU alongside
+3008 without), some properties may not exist on every card.  By default
+these surface as Puppet failures so you notice misconfigurations.
+
+Set `ignore_unsupported => true` to downgrade storcli execution failures
+to **warnings** instead.  Unsupported settings still appear in Puppet
+reports, but no longer fail the run:
+
+```puppet
+storcli_controller { 'fleet_defaults':
+  ignore_unsupported  => true,  # skip unsupported settings with a warning
+  autorebuild         => true,
+  rebuildrate         => 60,
+  ncq                 => true,
+  alarm               => true,
+  sync_time           => true,
+}
+
+storcli_vd { 'fleet_vd_policy':
+  ignore_unsupported => true,
+  write_policy       => 'wt',
+  read_policy        => 'ra',
+  io_policy          => 'direct',   # ignored with a warning on cards without IO policy support
+  disk_cache         => 'default',
+}
+```
+
+The same parameter is available on all four resource types.
 
 ---
 

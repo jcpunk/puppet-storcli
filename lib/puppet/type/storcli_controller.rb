@@ -184,6 +184,19 @@ Puppet::Type.newtype(:storcli_controller) do
     munge { |v| v.to_i }
   end
 
+  newparam(:ignore_unsupported) do
+    desc <<-DESC
+      When true, silently downgrades errors from unsupported settings to
+      warnings instead of failing the resource.  Useful for fleet-wide
+      defaults across heterogeneous hardware — e.g. a 3008 controller
+      that lacks a BBU or certain cache features will not cause a Puppet
+      failure when this is enabled.  Non-applicable settings still generate
+      a warning so they are visible in reports.
+    DESC
+    newvalues(:true, :false)
+    defaultto :false
+  end
+
   # Ordering is handled by init.pp: Class['storcli::install'] -> Storcli_controller <| |>
   # autorequire(:class) is not supported by Puppet's type system (Class is not a
   # regular Puppet::Type), so we rely on the explicit ordering in init.pp instead.

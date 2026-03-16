@@ -88,4 +88,21 @@ describe Puppet::Type.type(:storcli_controller) do
     end
   end
 
+  describe 'ignore_unsupported parameter' do
+    it 'defaults to false' do
+      resource = described_class.new(name: '/c0')
+      expect(resource[:ignore_unsupported]).to eq(:false)
+    end
+
+    it 'accepts true' do
+      resource = described_class.new(name: '/c0', ignore_unsupported: true)
+      expect(resource[:ignore_unsupported]).to eq(:true)
+    end
+
+    it 'accepts false' do
+      resource = described_class.new(name: '/c0', ignore_unsupported: false)
+      expect(resource[:ignore_unsupported]).to eq(:false)
+    end
+  end
+
 end

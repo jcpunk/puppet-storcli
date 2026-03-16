@@ -134,6 +134,17 @@ Puppet::Type.newtype(:storcli_vd) do
     newvalues(:on, :off, :default)
   end
 
+  newparam(:ignore_unsupported) do
+    desc <<-DESC
+      When true, silently downgrades errors from unsupported settings to
+      warnings instead of failing the resource.  Useful for fleet-wide
+      defaults across heterogeneous hardware — e.g. a controller without
+      IO policy support will not cause a Puppet failure.
+    DESC
+    newvalues(:true, :false)
+    defaultto :false
+  end
+
   # Ordering is handled by init.pp: Class['storcli::install'] -> Storcli_vd <| |>
   # autorequire(:class) is not supported by Puppet's type system (Class is not a
   # regular Puppet::Type), so we rely on the explicit ordering in init.pp instead.

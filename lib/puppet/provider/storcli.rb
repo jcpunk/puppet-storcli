@@ -114,9 +114,16 @@ class Puppet::Provider::Storcli < Puppet::Provider
   # ---------------------------------------------------------------------------
 
   # Run a storcli `set` command against a single controller.
+  # When ignore_unsupported is true, execution failures are logged as
+  # warnings instead of raising — useful for fleet-wide defaults across
+  # heterogeneous hardware where some controllers lack certain features.
   def storcli_set_for(cid, args)
     output = storcli_exec("/c#{cid} #{args}", failonfail: true)
     Puppet.debug("storcli set: /c#{cid} #{args} => #{output}")
+  rescue Puppet::ExecutionFailure => e
+    raise unless ignore_unsupported?
+
+    Puppet.warning("storcli: ignoring unsupported setting on /c#{cid}: #{args} (#{e.message.strip})")
   end
 
   # Run a storcli `set` command against every managed controller.
@@ -125,9 +132,14 @@ class Puppet::Provider::Storcli < Puppet::Provider
   end
 
   # Run a storcli `set` command against a single VD target.
+  # Respects ignore_unsupported the same way as storcli_set_for.
   def storcli_vd_set_for(cid, vid, args)
     output = storcli_exec("/c#{cid}/v#{vid} #{args}", failonfail: true)
     Puppet.debug("storcli set: /c#{cid}/v#{vid} #{args} => #{output}")
+  rescue Puppet::ExecutionFailure => e
+    raise unless ignore_unsupported?
+
+    Puppet.warning("storcli: ignoring unsupported setting on /c#{cid}/v#{vid}: #{args} (#{e.message.strip})")
   end
 
   # Run a storcli `set` command against every managed VD target.
@@ -197,6 +209,14 @@ class Puppet::Provider::Storcli < Puppet::Provider
 
   def enabled_to_bool(val)
     val.to_s.casecmp('enabled').zero? ? :true : :false
+  end
+
+  # Returns true when the resource has ignore_unsupported set to true.
+  # Used by storcli_set_for / storcli_vd_set_for to downgrade execution
+  # failures to warnings instead of raising.
+  def ignore_unsupported?
+    @resource.class.validparameter?(:ignore_unsupported) &&
+      (@resource[:ignore_unsupported] == :true || @resource[:ignore_unsupported] == true)
   end
 
   private
