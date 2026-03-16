@@ -166,9 +166,9 @@ class Storcli
     end
   end
 
-  # Populates @controller_settings_info: all raw controller properties keyed
-  # by controller ID. Numeric strings are coerced to integers; everything else
-  # stays as a string.
+  # Populates @controller_settings_info: all controller properties keyed
+  # by controller ID. Keys are converted to snake_case, numeric strings are
+  # coerced to integers, and On/Off/Enabled/Disabled strings become booleans.
   def collect_controller_settings
     @controller_settings_info = {}
     return unless num_controllers.positive?
@@ -180,9 +180,9 @@ class Storcli
       settings = {}
       props = controller.dig('Response Data', 'Controller Properties') || []
       props.each do |attr|
-        key = attr['Ctrl_Prop']
+        key = to_snake_case(attr['Ctrl_Prop'])
         val = attr['Value']
-        settings[key] = coerce_to_integer(val)
+        settings[key] = coerce_setting_value(val)
       end
 
       @controller_settings_info[id] = settings unless settings.empty?
@@ -351,6 +351,36 @@ class Storcli
     case val.to_s
     when /\AYes\z/i  then true
     when /\ANo\z/i   then false
+    else val
+    end
+  end
+
+  # Converts a storcli Ctrl_Prop key to snake_case.
+  # Examples: 'Rebuild Rate' → 'rebuild_rate', 'AutoRebuild' → 'auto_rebuild',
+  #           'PR Mode' → 'pr_mode', 'CC Next Starttime' → 'cc_next_starttime'
+  def to_snake_case(str)
+    str.gsub(/([a-z\d])([A-Z])/, '\1_\2')   # camelCase boundaries
+       .gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2') # ABCDef → ABC_Def
+       .tr(' ', '_')                           # spaces to underscores
+       .gsub(/_+/, '_')                        # collapse multiple underscores
+       .downcase
+  end
+
+  # Coerce a controller setting value: try integer first, then On/Off and
+  # Enabled/Disabled to boolean, otherwise return the original string.
+  def coerce_setting_value(val)
+    return val if val.nil?
+
+    # Try integer first
+    int_val = coerce_to_integer(val)
+    return int_val if int_val.is_a?(Integer)
+
+    # Try boolean coercion for common storcli toggle strings
+    case val.to_s
+    when /\AOn\z/i       then true
+    when /\AOff\z/i      then false
+    when /\AEnabled\z/i  then true
+    when /\ADisabled\z/i then false
     else val
     end
   end

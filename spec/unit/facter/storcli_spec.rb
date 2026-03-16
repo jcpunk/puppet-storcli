@@ -523,4 +523,57 @@ describe :storcli, type: :fact do
       end
     end
   end
+
+  describe 'Storcli helper methods' do
+    let(:storcli) { Storcli.new }
+
+    describe '#to_snake_case' do
+      {
+        'Rebuild Rate'        => 'rebuild_rate',
+        'Patrol Read Rate'    => 'patrol_read_rate',
+        'AutoRebuild'         => 'auto_rebuild',
+        'NCQ'                 => 'ncq',
+        'SmartPollInterval'   => 'smart_poll_interval',
+        'PR Mode'             => 'pr_mode',
+        'CC Next Starttime'   => 'cc_next_starttime',
+        'Boot With Pinned Cache' => 'boot_with_pinned_cache',
+        'Cache Flush Interval'   => 'cache_flush_interval',
+        'Perf Mode'           => 'perf_mode',
+      }.each do |input, expected|
+        it "converts '#{input}' to '#{expected}'" do
+          expect(storcli.send(:to_snake_case, input)).to eq(expected)
+        end
+      end
+    end
+
+    describe '#coerce_setting_value' do
+      it 'converts numeric strings to integers' do
+        expect(storcli.send(:coerce_setting_value, '60')).to eq(60)
+      end
+
+      it 'converts On to true' do
+        expect(storcli.send(:coerce_setting_value, 'On')).to eq(true)
+      end
+
+      it 'converts Off to false' do
+        expect(storcli.send(:coerce_setting_value, 'Off')).to eq(false)
+      end
+
+      it 'converts Enabled to true' do
+        expect(storcli.send(:coerce_setting_value, 'Enabled')).to eq(true)
+      end
+
+      it 'converts Disabled to false' do
+        expect(storcli.send(:coerce_setting_value, 'Disabled')).to eq(false)
+      end
+
+      it 'preserves other strings as-is' do
+        expect(storcli.send(:coerce_setting_value, 'RAID5')).to eq('RAID5')
+      end
+
+      it 'returns nil for nil input' do
+        expect(storcli.send(:coerce_setting_value, nil)).to be_nil
+      end
+    end
+  end
 end

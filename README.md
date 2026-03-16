@@ -271,9 +271,10 @@ storcli:
       physical_drive_count: 5
       storcli_tool: /usr/bin/perccli64
 
-      controller_settings:               # raw key/value from `show all`; numerics coerced to Integer
-        'Rebuild Rate': 60
-        'Patrol Read Rate': 30
+      controller_settings:               # snake_case key/value from `show all`; numerics → Integer, On/Off → bool
+        rebuild_rate: 60
+        patrol_read_rate: 30
+        auto_rebuild: true
         # ... (all remaining storcli properties)
 
       drive_groups:
