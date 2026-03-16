@@ -1053,16 +1053,26 @@ Default value: `undef`
 
 Uses storcli/perccli JSON output for reliable idempotent management.
 
+The controller ID is derived from the title when it matches `/c<ID>`.
+If unset and not derivable from the title, it defaults to 'all'.
+
 #### Examples
 
 ##### Enable concurrent consistency checks on controller 0
 
 ```puppet
 storcli_consistencycheck { '/c0':
-  controller => 0,
   mode       => 'conc',
   delay      => 672,
   rate       => 30,
+}
+```
+
+##### Target all controllers
+
+```puppet
+storcli_consistencycheck { 'fleet_cc':
+  mode => 'conc',
 }
 ```
 
@@ -1095,13 +1105,12 @@ The following parameters are available in the `storcli_consistencycheck` type.
 
 ##### <a name="-storcli_consistencycheck--controller"></a>`controller`
 
-Integer controller ID (e.g. 0) or 'all' to target every detected controller.
 
 ##### <a name="-storcli_consistencycheck--name"></a>`name`
 
 namevar
 
-Resource title.
+Resource title. When it matches "/c<ID>" the controller is derived automatically.
 
 ##### <a name="-storcli_consistencycheck--provider"></a>`provider`
 
@@ -1120,6 +1129,9 @@ Uses storcli/perccli JSON output for reliable idempotent management.
 Each property is independently managed — leave a property unset to
 skip management of that setting.
 
+The controller ID is derived from the title when it matches `/c<ID>`.
+If unset and not derivable from the title, it defaults to 'all'.
+
 #### Examples
 
 ##### Enable NCQ and set rebuild rate on controller 0
@@ -1129,6 +1141,14 @@ storcli_controller { '/c0':
   autorebuild    => true,
   rebuildrate    => 60,
   ncq            => true,
+}
+```
+
+##### Target all controllers (default when title is not /c<ID>)
+
+```puppet
+storcli_controller { 'fleet_settings':
+  ncq => true,
 }
 ```
 
@@ -1195,13 +1215,12 @@ The following parameters are available in the `storcli_controller` type.
 
 ##### <a name="-storcli_controller--controller"></a>`controller`
 
-Integer controller ID (e.g. 0) or 'all' to target every detected controller.
 
 ##### <a name="-storcli_controller--name"></a>`name`
 
 namevar
 
-Resource title. By convention use "/c<ID>" but any unique string works.
+Resource title. When it matches "/c<ID>" the controller is derived automatically.
 
 ##### <a name="-storcli_controller--provider"></a>`provider`
 
@@ -1232,18 +1251,28 @@ Default value: `true`
 
 Uses storcli/perccli JSON output for reliable idempotent management.
 
+The controller ID is derived from the title when it matches `/c<ID>`.
+If unset and not derivable from the title, it defaults to 'all'.
+
 #### Examples
 
 ##### Enable automatic patrol reads on controller 0
 
 ```puppet
 storcli_patrolread { '/c0':
-  controller  => 0,
   mode        => 'auto',
   delay       => 336,
   rate        => 30,
   includessds => false,
   uncfgareas  => false,
+}
+```
+
+##### Target all controllers
+
+```puppet
+storcli_patrolread { 'fleet_pr':
+  mode => 'auto',
 }
 ```
 
@@ -1288,13 +1317,12 @@ The following parameters are available in the `storcli_patrolread` type.
 
 ##### <a name="-storcli_patrolread--controller"></a>`controller`
 
-Integer controller ID (e.g. 0) or 'all' to target every detected controller.
 
 ##### <a name="-storcli_patrolread--name"></a>`name`
 
 namevar
 
-Resource title.
+Resource title. When it matches "/c<ID>" the controller is derived automatically.
 
 ##### <a name="-storcli_patrolread--provider"></a>`provider`
 
@@ -1313,6 +1341,9 @@ Controls per-VD cache policies and I/O behaviour.  Both `controller` and
 `virtual_disk` accept the string 'all' to target every detected item,
 making it easy to enforce a fleet-wide policy.
 
+The controller and VD IDs are derived from the title when it matches
+`/c<ID>/v<ID>`.  If unset and not derivable, they default to 'all'.
+
 If a setting cannot be applied (e.g. requesting write-back without a BBU),
 storcli itself will report the error and Puppet will flag the resource as
 failed so sysadmins can see it in their reports.
@@ -1322,19 +1353,15 @@ failed so sysadmins can see it in their reports.
 ##### Set write-back cache on all VDs of controller 0
 
 ```puppet
-storcli_vd { 'all_vds_c0':
-  controller   => 0,
-  virtual_disk => 'all',
+storcli_vd { '/c0/vall':
   write_policy => 'wb',
 }
 ```
 
-##### Uniform policy across every VD on every controller
+##### Uniform policy across every VD on every controller (default)
 
 ```puppet
 storcli_vd { 'fleet_policy':
-  controller   => 'all',
-  virtual_disk => 'all',
   write_policy => 'wt',
   read_policy  => 'ra',
   io_policy    => 'direct',
@@ -1346,8 +1373,6 @@ storcli_vd { 'fleet_policy':
 
 ```puppet
 storcli_vd { '/c0/v1':
-  controller   => 0,
-  virtual_disk => 1,
   write_policy => 'awb',
 }
 ```
@@ -1392,13 +1417,12 @@ The following parameters are available in the `storcli_vd` type.
 
 ##### <a name="-storcli_vd--controller"></a>`controller`
 
-Integer controller ID (e.g. 0) or 'all' to target every detected controller.
 
 ##### <a name="-storcli_vd--name"></a>`name`
 
 namevar
 
-Resource title.
+Resource title. When it matches "/c<ID>/v<ID>" both controller and virtual_disk are derived automatically.
 
 ##### <a name="-storcli_vd--provider"></a>`provider`
 
@@ -1413,5 +1437,4 @@ Default value: `/usr/local/sbin/storcli`
 
 ##### <a name="-storcli_vd--virtual_disk"></a>`virtual_disk`
 
-Integer VD ID (e.g. 0) or 'all' to target every VD on the controller(s).
 
