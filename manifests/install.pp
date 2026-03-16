@@ -14,8 +14,9 @@ class storcli::install (
 
   # https://tickets.puppetlabs.com/browse/PUP-10259
   if Boolean($package_manage) {
-    package { $package_name:
+    package { 'storcli_packages':
       ensure => $package_ensure,
+      name   => $package_name,
     }
   }
 }

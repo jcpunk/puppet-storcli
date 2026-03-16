@@ -183,6 +183,6 @@ Puppet::Type.newtype(:storcli_controller) do
   end
 
   autorequire(:package) do
-    ['storcli', 'perccli']
+    ['storcli_packages']
   end
 end

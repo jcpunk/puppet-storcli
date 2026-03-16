@@ -141,6 +141,6 @@ Puppet::Type.newtype(:storcli_patrolread) do
   end
 
   autorequire(:package) do
-    ['storcli', 'perccli']
+    ['storcli_packages']
   end
 end

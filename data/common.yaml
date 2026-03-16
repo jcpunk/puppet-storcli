@@ -1,7 +1,6 @@
 ---
 storcli::package_manage: "%{facts.storcli.present}"
-storcli::package_name:
-  - 'storcli'
+storcli::package_name: 'storcli'
 storcli::package_ensure: present
 
 storcli::configure_settings: true

@@ -20,30 +20,31 @@ describe 'storcli' do
         it { is_expected.to contain_class('storcli::configure') }
 
         describe 'storcli::install' do
-          let(:params) { { package_ensure: 'present', package_name: ['storcli'] } }
+          let(:params) { { package_ensure: 'present', package_name: 'storcli' } }
 
           it {
-            is_expected.to contain_package('storcli').with(
+            is_expected.to contain_package('storcli_packages').with(
               ensure: 'present',
+              name: 'storcli',
             )
           }
 
           describe 'should allow package ensure to be overridden' do
-            let(:params) { { package_ensure: 'latest', package_name: ['storcli'], package_manage: true } }
+            let(:params) { { package_ensure: 'latest', package_name: 'storcli', package_manage: true } }
 
-            it { is_expected.to contain_package('storcli').with_ensure('latest') }
+            it { is_expected.to contain_package('storcli_packages').with_ensure('latest') }
           end
 
           describe 'should allow the package name to be overridden' do
-            let(:params) { { package_ensure: 'present', package_name: ['hambaby'], package_manage: true } }
+            let(:params) { { package_ensure: 'present', package_name: 'hambaby', package_manage: true } }
 
-            it { is_expected.to contain_package('hambaby') }
+            it { is_expected.to contain_package('storcli_packages').with_name('hambaby') }
           end
 
           describe 'should allow the package to be unmanaged' do
-            let(:params) { { package_manage: false, package_name: ['storcli'] } }
+            let(:params) { { package_manage: false, package_name: 'storcli' } }
 
-            it { is_expected.not_to contain_package('storcli') }
+            it { is_expected.not_to contain_package('storcli_packages') }
           end
 
           describe 'is storcli binary already in "/usr/local/sbin"' do
@@ -66,10 +67,10 @@ describe 'storcli' do
         it { is_expected.to contain_class('storcli::install') }
 
         describe 'storcli::install' do
-          let(:params) { { package_ensure: 'present', package_name: ['storcli'] } }
+          let(:params) { { package_ensure: 'present', package_name: 'storcli' } }
 
           it {
-            is_expected.not_to contain_package('storcli').with(
+            is_expected.not_to contain_package('storcli_packages').with(
               ensure: 'present',
             )
           }
