@@ -202,6 +202,38 @@ describe 'storcli' do
         it { is_expected.to compile }
         it { is_expected.to contain_storcli_vd('/c0/v0').with(write_policy: 'wt', read_policy: 'ra') }
       end
+
+      context 'with hiera hashes but no controller present' do
+        let(:facts) do
+          os_facts.merge({
+                           'storcli' => {
+                             'present' => false,
+                           },
+                         })
+        end
+        let(:params) do
+          {
+            controllers: {
+              '/c0' => { 'ncq' => true },
+            },
+            patrolreads: {
+              '/c0' => { 'mode' => 'auto' },
+            },
+            consistencychecks: {
+              '/c0' => { 'mode' => 'conc' },
+            },
+            vds: {
+              '/c0/v0' => { 'write_policy' => 'wt' },
+            },
+          }
+        end
+
+        it { is_expected.to compile }
+        it { is_expected.not_to contain_storcli_controller('/c0') }
+        it { is_expected.not_to contain_storcli_patrolread('/c0') }
+        it { is_expected.not_to contain_storcli_consistencycheck('/c0') }
+        it { is_expected.not_to contain_storcli_vd('/c0/v0') }
+      end
     end
   end
 end

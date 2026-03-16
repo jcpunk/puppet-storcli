@@ -65,7 +65,10 @@ MegaRAID/PERC controller is detected.
 ### Configuration via Hiera
 
 All four native types can be driven entirely from Hiera (or an ENC)
-via the hash parameters on the `storcli` class:
+via the hash parameters on the `storcli` class.  The resources are
+only created when `$facts['storcli']['present']` is true, so you can
+safely set these hashes in a shared Hiera layer and they will be
+silently skipped on nodes without RAID hardware.
 
 ```yaml
 storcli::controllers:
@@ -285,7 +288,28 @@ This module provides a custom fact and native resource types for managing
 controller-level settings, patrol read scheduling, consistency check
 scheduling, and virtual disk cache policies.
 
+The native types (`storcli_controller`, `storcli_patrolread`,
+`storcli_consistencycheck`, `storcli_vd`) can be used standalone without
+declaring the `storcli` class.  In that case the package is not managed
+and the `Class['storcli::install'] ->` ordering is absent.  Ensure the
+storcli/perccli binary is installed before the Puppet run, e.g. in the
+same profile.
+
 This module does not provide the `storcli` or `perccli` packages, you must do that yourself.  If the `package` provider can load them, they will be installed automatically.
+
+When Hiera hashes are supplied via the class parameters (`storcli::controllers`,
+`storcli::patrolreads`, `storcli::consistencychecks`, `storcli::vds`), the
+resources are only created when `$facts['storcli']['present']` is true.
+This means you can safely include these hashes in a shared Hiera layer —
+nodes without RAID hardware will silently skip them.
+
+Not all controllers support every property.  The module handles some
+cases automatically (e.g. the `alarm` property is silently skipped on
+controllers that report `ABSENT` alarm hardware).  For properties where
+the controller lacks support, storcli itself returns an error and Puppet
+reports the resource as failed so the sysadmin can investigate.  This
+applies, for example, to attempting to set `io_policy` or `write_policy`
+on controllers without a BBU.
 
 Settings applied by the native types will propagate storcli failures
 back to Puppet — for example, attempting to enable WriteBack on a

@@ -63,24 +63,28 @@ class storcli (
   Class['storcli::install'] -> Storcli_vd <| |>
 
   # Create native type resources from Hiera hashes.
-  $controllers.each |$_name, $_params| {
-    storcli_controller { $_name:
-      * => $_params,
+  # Only when a MegaRAID/PERC controller is present — avoids creating
+  # resources that would inevitably fail on nodes without RAID hardware.
+  if $facts.dig('storcli', 'present') {
+    $controllers.each |$_name, $_params| {
+      storcli_controller { $_name:
+        * => $_params,
+      }
     }
-  }
-  $patrolreads.each |$_name, $_params| {
-    storcli_patrolread { $_name:
-      * => $_params,
+    $patrolreads.each |$_name, $_params| {
+      storcli_patrolread { $_name:
+        * => $_params,
+      }
     }
-  }
-  $consistencychecks.each |$_name, $_params| {
-    storcli_consistencycheck { $_name:
-      * => $_params,
+    $consistencychecks.each |$_name, $_params| {
+      storcli_consistencycheck { $_name:
+        * => $_params,
+      }
     }
-  }
-  $vds.each |$_name, $_params| {
-    storcli_vd { $_name:
-      * => $_params,
+    $vds.each |$_name, $_params| {
+      storcli_vd { $_name:
+        * => $_params,
+      }
     }
   }
 }
