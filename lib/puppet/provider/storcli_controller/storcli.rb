@@ -142,7 +142,7 @@ Puppet::Type.type(:storcli_controller).provide(
   private
 
   def controller_time_in_sync?(cid, tolerance, use_utc)
-    json = storcli_json("/c#{cid} show time J nolog")
+    json = storcli_json("/c#{cid} show time")
     return false unless json
 
     controller_time = nil

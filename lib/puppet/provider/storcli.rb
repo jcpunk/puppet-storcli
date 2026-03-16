@@ -55,18 +55,26 @@ class Puppet::Provider::Storcli < Puppet::Provider
   end
 
   # ---------------------------------------------------------------------------
-  # JSON execution helpers
+  # Execution helpers
   # ---------------------------------------------------------------------------
 
-  # Run `storcli_cmd args` and return the parsed JSON hash, or nil on failure.
-  def storcli_json(args)
+  # Run a storcli command and return stdout.
+  # Always runs from /tmp (writable cwd, stray logs land somewhere cleanable)
+  # and appends `nolog` to suppress storcli's own log files.
+  def storcli_exec(args, failonfail: false)
     cmd = @resource[:storcli_cmd]
-    raw = Puppet::Util::Execution.execute("cd /tmp && #{cmd} #{args}", failonfail: false)
+    Puppet::Util::Execution.execute("cd /tmp && #{cmd} #{args} nolog", failonfail: failonfail)
+  end
+
+  # Run a storcli command with JSON output and return the parsed Hash, or nil.
+  # Automatically appends `J nolog` — callers should NOT include those flags.
+  def storcli_json(args)
+    raw = storcli_exec("#{args} J")
     return nil if raw.nil? || raw.empty?
 
     JSON.parse(raw)
   rescue JSON::ParserError => e
-    Puppet.debug("storcli: JSON parse error from `#{cmd} #{args}`: #{e.message}")
+    Puppet.debug("storcli: JSON parse error from `#{args}`: #{e.message}")
     nil
   end
 
@@ -82,10 +90,10 @@ class Puppet::Provider::Storcli < Puppet::Provider
     end
   end
 
-  # Run `show <setting> J nolog` for a single controller and return the
+  # Run `show <setting>` for a single controller and return the
   # Controller Properties array (array of {"Ctrl_Prop" => ..., "Value" => ...}).
   def show_property_for(cid, setting)
-    json = storcli_json("/c#{cid} show #{setting} J nolog")
+    json = storcli_json("/c#{cid} show #{setting}")
     return [] unless json
 
     props = []
@@ -107,12 +115,8 @@ class Puppet::Provider::Storcli < Puppet::Provider
 
   # Run a storcli `set` command against a single controller.
   def storcli_set_for(cid, args)
-    cmd = @resource[:storcli_cmd]
-    output = Puppet::Util::Execution.execute(
-      "cd /tmp && #{cmd} /c#{cid} #{args} nolog",
-      failonfail: true,
-    )
-    Puppet.debug("storcli set: #{cmd} /c#{cid} #{args} => #{output}")
+    output = storcli_exec("/c#{cid} #{args}", failonfail: true)
+    Puppet.debug("storcli set: /c#{cid} #{args} => #{output}")
   end
 
   # Run a storcli `set` command against every managed controller.
@@ -122,12 +126,8 @@ class Puppet::Provider::Storcli < Puppet::Provider
 
   # Run a storcli `set` command against a single VD target.
   def storcli_vd_set_for(cid, vid, args)
-    cmd = @resource[:storcli_cmd]
-    output = Puppet::Util::Execution.execute(
-      "cd /tmp && #{cmd} /c#{cid}/v#{vid} #{args} nolog",
-      failonfail: true,
-    )
-    Puppet.debug("storcli set: #{cmd} /c#{cid}/v#{vid} #{args} => #{output}")
+    output = storcli_exec("/c#{cid}/v#{vid} #{args}", failonfail: true)
+    Puppet.debug("storcli set: /c#{cid}/v#{vid} #{args} => #{output}")
   end
 
   # Run a storcli `set` command against every managed VD target.
@@ -164,7 +164,7 @@ class Puppet::Provider::Storcli < Puppet::Provider
   def read_vd_property
     values = []
     each_vd_target do |cid, vid|
-      json = storcli_json("/c#{cid}/v#{vid} show all J nolog")
+      json = storcli_json("/c#{cid}/v#{vid} show all")
       vd_props = {}
       vd_info = []
       if json
@@ -203,7 +203,7 @@ class Puppet::Provider::Storcli < Puppet::Provider
 
   # Discover controller IDs by running `/call show J nolog`.
   def discover_controller_ids
-    json = storcli_json('/call show J nolog')
+    json = storcli_json('/call show')
     return [] unless json
 
     ids = []
@@ -216,7 +216,7 @@ class Puppet::Provider::Storcli < Puppet::Provider
 
   # Discover VD IDs for a given controller from its VD LIST.
   def discover_vd_ids(cid)
-    json = storcli_json("/c#{cid} show J nolog")
+    json = storcli_json("/c#{cid} show")
     return [] unless json
 
     vd_ids = []
