@@ -5,8 +5,8 @@
 Puppet module providing a structured fact and four native resource types for
 managing MegaRAID and PERC RAID controllers via `storcli`/`perccli`.
 
-- [Notes](#notes)
 - [Limitations](#limitations)
+- [Notes](#notes)
 - [Resource types](#resource-types)
   - [Title resolution](#title-resolution)
   - [storcli\_controller](#storcli_controller)
@@ -21,12 +21,6 @@ managing MegaRAID and PERC RAID controllers via `storcli`/`perccli`.
 
 ---
 
-## Notes
-
-- Controller presence is detected via `/sys/bus/pci/drivers/megaraid_sas` and `/sys/bus/pci/drivers/mpt3sas`.
-
----
-
 ## Limitations
 
 - Requires `storcli` ≥ `007.2508.0000.0000` (2023-02-27), or `perccli` ≥ `007.2313.0000.0000` (2023-03-07) on Dell systems.
@@ -34,9 +28,15 @@ managing MegaRAID and PERC RAID controllers via `storcli`/`perccli`.
   The `storcli` class can install them if the package is available in a configured repository (see [Package management](#package-management)).
 - Not all controllers support every property.  The `alarm` property is silently skipped when the controller reports `ABSENT` alarm hardware.
   Other unsupported properties surface as Puppet failures by default so misconfigurations are visible during the run.
-  Set `ignore_unsupported => true` to downgrade these to warnings (see [Heterogeneous fleets](#heterogeneous-fleets)).
-- Mixing `all` with specifically identified controllers / virtual drives, will result in flapping and ambigious behavior.
+- Mixing `all` with specifically identified controllers / virtual disks, will result in flapping and ambigious behavior.
 - `storcli2`/`perccli2` are not supported — both tools start controller numbering at zero, making reconciliation with existing resources ambiguous.
+
+---
+
+## Notes
+
+- Controller presence is detected via `/sys/bus/pci/drivers/megaraid_sas` and `/sys/bus/pci/drivers/mpt3sas`.
+- Set `ignore_unsupported => true` to downgrade configuration errors to warnings (see [Heterogeneous fleets](#heterogeneous-fleets)).
 
 ---
 
@@ -183,7 +183,7 @@ Fleet-wide defaults targeting all controllers.  Adapt to your needs.
 ```puppet
 include storcli
 
-storcli_controller { 'default':
+storcli_controller { '/call':
   autorebuild         => true,
   rebuildrate         => 60,
   perfmode            => 0,
@@ -198,7 +198,7 @@ storcli_controller { 'default':
 }
 
 # Patrol read: automatic, every 14 days, 30% IO budget
-storcli_patrolread { 'default':
+storcli_patrolread { '/call':
   mode        => 'auto',
   delay       => 336,
   rate        => 30,
@@ -207,7 +207,7 @@ storcli_patrolread { 'default':
 }
 
 # Consistency check: concurrent, every 28 days, 30% IO budget
-storcli_consistencycheck { 'default':
+storcli_consistencycheck { '/call':
   mode  => 'conc',
   delay => 672,
   rate  => 30,
@@ -245,7 +245,7 @@ storcli_vd { 'fleet_vd_policy':
 }
 ```
 
-The same parameter is available on all four resource types.
+The same parameter is available on all four `storcli_` resource types.
 
 ---
 
