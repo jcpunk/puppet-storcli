@@ -40,8 +40,10 @@ Puppet::Type.newtype(:storcli_vd) do
   end
 
   newparam(:controller) do
-    desc "Integer controller ID (e.g. 0) or 'all' to target every detected controller. " \
-         "Derived from the title when it matches /c<ID>. Defaults to 'all' when unset."
+    desc <<-DESC
+      Integer controller ID (e.g. 0) or 'all' to target every detected controller.
+      Derived from the title when it matches /c<ID>. Defaults to 'all' when unset.
+    DESC
     defaultto do
       name = resource[:name].to_s
       if name =~ %r{/c(\d+)(?:/|$)}
@@ -61,8 +63,10 @@ Puppet::Type.newtype(:storcli_vd) do
   end
 
   newparam(:virtual_disk) do
-    desc "Integer VD ID (e.g. 0) or 'all' to target every VD on the controller(s). " \
-         "Derived from the title when it matches /v<ID>. Defaults to 'all' when unset."
+    desc <<-DESC
+      Integer VD ID (e.g. 0) or 'all' to target every VD on the controller(s).
+      Derived from the title when it matches /v<ID>. Defaults to 'all' when unset.
+    DESC
     defaultto do
       name = resource[:name].to_s
       if name =~ %r{/v(\d+)(?:/|$)}

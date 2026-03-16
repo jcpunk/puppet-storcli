@@ -175,6 +175,8 @@ The following parameters are available in the `storcli_consistencycheck` type.
 
 ##### <a name="-storcli_consistencycheck--controller"></a>`controller`
 
+Integer controller ID (e.g. 0) or 'all' to target every detected controller.
+Derived from the title when it matches /c<ID>. Defaults to 'all' when unset.
 
 ##### <a name="-storcli_consistencycheck--name"></a>`name`
 
@@ -283,6 +285,8 @@ The following parameters are available in the `storcli_controller` type.
 
 ##### <a name="-storcli_controller--controller"></a>`controller`
 
+Integer controller ID (e.g. 0) or 'all' to target every detected controller.
+Derived from the title when it matches /c<ID>. Defaults to 'all' when unset.
 
 ##### <a name="-storcli_controller--name"></a>`name`
 
@@ -383,6 +387,8 @@ The following parameters are available in the `storcli_patrolread` type.
 
 ##### <a name="-storcli_patrolread--controller"></a>`controller`
 
+Integer controller ID (e.g. 0) or 'all' to target every detected controller.
+Derived from the title when it matches /c<ID>. Defaults to 'all' when unset.
 
 ##### <a name="-storcli_patrolread--name"></a>`name`
 
@@ -481,6 +487,8 @@ The following parameters are available in the `storcli_vd` type.
 
 ##### <a name="-storcli_vd--controller"></a>`controller`
 
+Integer controller ID (e.g. 0) or 'all' to target every detected controller.
+Derived from the title when it matches /c<ID>. Defaults to 'all' when unset.
 
 ##### <a name="-storcli_vd--name"></a>`name`
 
@@ -499,4 +507,6 @@ Path to the storcli or perccli binary. Defaults to the tool discovered by the st
 
 ##### <a name="-storcli_vd--virtual_disk"></a>`virtual_disk`
 
+Integer VD ID (e.g. 0) or 'all' to target every VD on the controller(s).
+Derived from the title when it matches /v<ID>. Defaults to 'all' when unset.
 

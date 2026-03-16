@@ -32,8 +32,10 @@ Puppet::Type.newtype(:storcli_controller) do
   end
 
   newparam(:controller) do
-    desc "Integer controller ID (e.g. 0) or 'all' to target every detected controller. " \
-         "Derived from the title when it matches /c<ID>. Defaults to 'all' when unset."
+    desc <<-DESC
+      Integer controller ID (e.g. 0) or 'all' to target every detected controller.
+      Derived from the title when it matches /c<ID>. Defaults to 'all' when unset.
+    DESC
     defaultto do
       name = resource[:name].to_s
       if name =~ %r{/c(\d+)(?:/|$)}
