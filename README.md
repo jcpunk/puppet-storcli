@@ -1,6 +1,6 @@
 # puppet-storcli
 
-Puppet module to generate facts with defined types to manage LSI MegaRAID controllers.
+Puppet module to generate facts with native types to manage LSI MegaRAID controllers.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
@@ -12,10 +12,14 @@ Puppet module to generate facts with defined types to manage LSI MegaRAID contro
   - [Setup](#setup)
     - [Setup Requirements](#setup-requirements)
   - [Usage](#usage)
-    - [Simple (apply defaults to all controllers)](#simple-apply-defaults-to-all-controllers)
-    - [Per-controller configuration via Hiera](#per-controller-configuration-via-hiera)
-    - [Using defined types directly in Puppet](#using-defined-types-directly-in-puppet)
+    - [Install the package](#install-the-package)
+    - [Configuration via Hiera](#configuration-via-hiera)
+    - [Controller settings](#controller-settings)
+    - [Patrol read scheduling](#patrol-read-scheduling)
+    - [Consistency check scheduling](#consistency-check-scheduling)
+    - [Virtual disk cache policies](#virtual-disk-cache-policies)
     - [Targeting all controllers](#targeting-all-controllers)
+    - [Recommended hardened configuration](#recommended-hardened-configuration)
   - [Reference](#reference)
     - [Facts](#facts)
   - [Limitations](#limitations)
@@ -23,20 +27,21 @@ Puppet module to generate facts with defined types to manage LSI MegaRAID contro
 
 ## Description
 
-This puppet module generates facts and provides defined types to manage
-LSI MegaRAID and Dell PERC RAID controllers.
+This puppet module generates facts and provides native resource types to
+manage LSI MegaRAID and Dell PERC RAID controllers.
 
-Three defined types cover the configurable areas:
+Four native resource types cover the configurable areas:
 
 | Type | Purpose |
 |------|---------|
-| `storcli::controller` | General controller settings (rebuild, time, perf, NCQ, cache, alarm, SMART) |
-| `storcli::patrolread` | Patrol read scheduling |
-| `storcli::consistencycheck` | Consistency check scheduling |
+| `storcli_controller` | General controller settings (rebuild, time, perf, NCQ, cache, alarm, SMART) |
+| `storcli_patrolread` | Patrol read scheduling |
+| `storcli_consistencycheck` | Consistency check scheduling |
+| `storcli_vd` | Virtual disk cache and IO policies |
 
-By default the module applies battle-tested defaults to every detected
-controller.  Power users can disable the automatic sweep and drive each
-controller individually.
+The `storcli` class handles package installation.  Controller
+configuration is done by declaring the native types directly in your
+profiles or via Hiera.
 
 ## Setup
 
@@ -48,91 +53,172 @@ The package needs to be available from some repository to be installed.
 
 ## Usage
 
-### Simple (apply defaults to all controllers)
+### Install the package
 
 ```puppet
 include storcli
 ```
 
-This installs the package, discovers every MegaRAID/PERC controller, and
-applies the module's defaults to all of them.  The defaults are designed
-to be safe and appropriate for most environments.
+This installs the storcli (or perccli on Dell) package when a
+MegaRAID/PERC controller is detected.
 
-### Per-controller configuration via Hiera
+### Configuration via Hiera
 
-Disable the automatic sweep and supply a hash of defined-type resources:
+All four native types can be driven entirely from Hiera (or an ENC)
+via the hash parameters on the `storcli` class:
 
 ```yaml
-# Disable the uniform "apply to all" behaviour
-storcli::configure_settings: false
-
-# Configure each controller individually
 storcli::controllers:
-  'controller_0':
-    controller: 0
+  '/c0':
     ncq: true
     perfmode: 0
-    alarm: true
+    autorebuild: true
+    rebuildrate: 60
     sync_time: true
     use_utc: true
-  'controller_1':
-    controller: 1
+    alarm: true
+  '/c1':
     ncq: false
     perfmode: 1
-    alarm: false
 
 storcli::patrolreads:
-  'patrol_all':
-    controller: 'all'
+  '/c0':
     mode: auto
     delay: 336
     rate: 30
     includessds: false
+    uncfgareas: false
 
 storcli::consistencychecks:
-  'cc_all':
-    controller: 'all'
+  'fleet_cc':
     mode: conc
     delay: 672
     rate: 30
+
+storcli::vds:
+  '/c0/v0':
+    write_policy: wt
+    read_policy: ra
+    io_policy: direct
+    disk_cache: default
 ```
 
-### Using defined types directly in Puppet
+Hash keys become resource titles.  When the title matches `/c<ID>` or
+`/c<ID>/v<ID>` the controller (and virtual disk) are derived
+automatically.  Otherwise, set the `controller` parameter explicitly or
+let it default to `'all'`.
 
-You can use the defined types in your own manifests.  Each setting
-parameter is optional — set only what you need; everything else remains
-unmanaged.
+### Controller settings
+
+Use `storcli_controller` to manage general controller settings.
+Each property is independently managed — leave a property unset to
+skip management of that setting.
 
 ```puppet
-# Only manage NCQ and alarm on controller 0
-storcli::controller { 'my_c0_settings':
-  controller => 0,
-  ncq        => true,
-  alarm      => false,
+storcli_controller { '/c0':
+  ncq                 => true,
+  perfmode            => 0,
+  autorebuild         => true,
+  rebuildrate         => 60,
+  cacheflushinterval  => 4,
+  bootwithpinnedcache => false,
+  alarm               => true,
+  smartpollinterval   => 60,
+  sync_time           => true,
+  use_utc             => true,
+  time_tolerance      => 120,
 }
+```
 
-# Set patrol read on controller 1
-storcli::patrolread { 'pr_c1':
-  controller => 1,
-  mode       => 'auto',
-  delay      => 168,
-  rate       => 50,
+### Patrol read scheduling
+
+```puppet
+storcli_patrolread { '/c0':
+  mode        => 'auto',
+  delay       => 336,
+  rate        => 30,
+  includessds => false,
+  uncfgareas  => false,
+}
+```
+
+### Consistency check scheduling
+
+```puppet
+storcli_consistencycheck { '/c0':
+  mode  => 'conc',
+  delay => 672,
+  rate  => 30,
+}
+```
+
+### Virtual disk cache policies
+
+```puppet
+storcli_vd { '/c0/v0':
+  write_policy => 'wt',
+  read_policy  => 'ra',
+  io_policy    => 'direct',
+  disk_cache   => 'default',
 }
 ```
 
 ### Targeting all controllers
 
-Pass `controller => 'all'` to target every detected controller at once:
+Pass a title that doesn't match `/c<ID>` and leave `controller`
+defaulting to `'all'`:
 
 ```puppet
-storcli::controller { 'ncq_everywhere':
-  controller => 'all',
-  ncq        => true,
+storcli_controller { 'fleet_settings':
+  ncq => true,
+}
+
+storcli_patrolread { 'fleet_pr':
+  mode => 'auto',
+  rate => 30,
 }
 ```
 
-If you want *different* settings per controller, set each one explicitly.
-The `'all'` target always applies the same values to every controller.
+### Recommended hardened configuration
+
+The author's preferred defaults for a well-managed environment.
+Adapt to your needs:
+
+```puppet
+# Install the package
+include storcli
+
+# Controller settings applied to all detected controllers
+storcli_controller { 'hardened':
+  autorebuild         => true,
+  rebuildrate         => 60,
+  sync_time           => true,
+  use_utc             => true,
+  time_tolerance      => 120,
+  perfmode            => 0,
+  ncq                 => true,
+  cacheflushinterval  => 4,
+  bootwithpinnedcache => false,
+  alarm               => true,
+  smartpollinterval   => 60,
+}
+
+# Patrol read — automatic, every 14 days, 30% IO
+storcli_patrolread { 'hardened':
+  mode        => 'auto',
+  delay       => 336,
+  rate        => 30,
+  includessds => false,
+  uncfgareas  => false,
+}
+
+# Consistency check — concurrent, every 28 days, 30% IO
+storcli_consistencycheck { 'hardened':
+  mode  => 'conc',
+  delay => 672,
+  rate  => 30,
+}
+```
 
 ## Reference
 
@@ -195,19 +281,13 @@ See [REFERENCE](REFERENCE.md) for all other reference documentation.
 
 ## Limitations
 
-This module provides a custom fact and defined types for managing
-controller-level settings, patrol read scheduling, and consistency
-check scheduling.
+This module provides a custom fact and native resource types for managing
+controller-level settings, patrol read scheduling, consistency check
+scheduling, and virtual disk cache policies.
 
 This module does not provide the `storcli` or `perccli` packages, you must do that yourself.  If the `package` provider can load them, they will be installed automatically.
 
-When `configure_settings` is true (the default), every detected
-controller receives the same configuration.  For per-controller
-settings, set `configure_settings` to false and use the defined types
-directly or populate the Hiera hashes (`storcli::controllers`,
-`storcli::patrolreads`, `storcli::consistencychecks`).
-
-Settings applied by the `exec` resources will propagate storcli failures
+Settings applied by the native types will propagate storcli failures
 back to Puppet — for example, attempting to enable WriteBack on a
 controller without a battery backup unit will cause the Puppet run to
 report a failure so the sysadmin can investigate.
