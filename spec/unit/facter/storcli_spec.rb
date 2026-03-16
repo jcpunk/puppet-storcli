@@ -460,9 +460,15 @@ describe :storcli, type: :fact do
                   expect(props['encryption']).to eq(vd_props_data['Encryption'])
                 end
 
-                # Check exposed_to_os
+                # Check exposed_to_os (converted from Yes/No to boolean)
                 if vd_props_data['Exposed to OS']
-                  expect(props['exposed_to_os']).to eq(vd_props_data['Exposed to OS'])
+                  raw = vd_props_data['Exposed to OS']
+                  expected = case raw
+                             when /\AYes\z/i then true
+                             when /\ANo\z/i then false
+                             else raw
+                             end
+                  expect(props['exposed_to_os']).to eq(expected)
                 end
 
                 # Check disk_cache_policy normalization

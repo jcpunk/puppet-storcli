@@ -341,6 +341,20 @@ class Storcli
     val
   end
 
+  # Converts 'Yes'/'No' strings to true/false booleans.
+  # Returns nil for nil input (so .compact can strip it).
+  # Returns the original string for values that are neither 'Yes' nor 'No'
+  # (e.g. 'N/A').
+  def yes_no_to_bool(val)
+    return nil if val.nil?
+
+    case val.to_s
+    when /\AYes\z/i  then true
+    when /\ANo\z/i   then false
+    else val
+    end
+  end
+
   # Extract drive group and virtual disk identifiers from VD list item
   # Returns [dg_id, vd_id] or [nil, nil] if not found
   def extract_vd_identifiers(item)
@@ -388,10 +402,10 @@ class Storcli
       'current_read_policy'       => map_read_policy(cache[:read]),
       'io_policy'                 => cache[:io],
       'disk_cache_policy'         => normalize_disk_cache_policy(vd_props.fetch('Disk Cache Policy', nil)),
-      'is_vd_boot_drive'          => vd_props.fetch('Is LD Ready for OS Requests', nil),
+      'is_vd_boot_drive'          => yes_no_to_bool(vd_props.fetch('Is LD Ready for OS Requests', nil)),
       'encryption'                => vd_props.fetch('Encryption', nil),
-      'exposed_to_os'             => vd_props.fetch('Exposed to OS', nil),
-      'unmap_enabled'             => vd_props.fetch('Unmap Enabled', nil),
+      'exposed_to_os'             => yes_no_to_bool(vd_props.fetch('Exposed to OS', nil)),
+      'unmap_enabled'             => yes_no_to_bool(vd_props.fetch('Unmap Enabled', nil)),
       'data_protection'           => vd_props.fetch('Data Protection', nil),
     }.compact
   end
