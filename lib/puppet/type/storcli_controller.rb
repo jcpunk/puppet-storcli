@@ -53,8 +53,26 @@ Puppet::Type.newtype(:storcli_controller) do
   end
 
   newparam(:storcli_cmd) do
-    desc 'Path to the storcli or perccli binary.'
-    defaultto '/usr/local/sbin/storcli'
+    desc 'Path to the storcli or perccli binary. Defaults to the tool discovered by the storcli fact.'
+    defaultto do
+      storcli_fact = Facter.value(:storcli)
+      tool = nil
+      if storcli_fact.is_a?(Hash) && storcli_fact['controllers'].is_a?(Hash)
+        ctrl_id = resource[:controller]
+        controllers = storcli_fact['controllers']
+        # Try to find the tool for the specific controller
+        if ctrl_id.to_s != 'all'
+          ctrl_data = controllers[ctrl_id] || controllers[ctrl_id.to_s]
+          tool = ctrl_data['storcli_tool'] if ctrl_data.is_a?(Hash)
+        end
+        # Fall back to the first controller's tool
+        if tool.nil?
+          first_ctrl = controllers.values.first
+          tool = first_ctrl['storcli_tool'] if first_ctrl.is_a?(Hash)
+        end
+      end
+      tool || '/usr/local/sbin/storcli'
+    end
 
     validate do |value|
       raise Puppet::Error, 'storcli_cmd must be an absolute path' unless value.start_with?('/')
@@ -165,6 +183,6 @@ Puppet::Type.newtype(:storcli_controller) do
   end
 
   autorequire(:package) do
-    ['storcli']
+    ['storcli', 'perccli']
   end
 end

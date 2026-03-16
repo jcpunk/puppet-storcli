@@ -40,4 +40,71 @@ describe Puppet::Type.type(:storcli_controller) do
       expect(resource[:controller]).to eq('all')
     end
   end
+
+  describe 'storcli_cmd default from fact' do
+    it 'uses the storcli_tool from the matching controller in the fact' do
+      allow(Facter).to receive(:value).with(:storcli).and_return(
+        'present' => true,
+        'controllers' => {
+          0 => { 'storcli_tool' => '/opt/MegaRAID/storcli/storcli64' },
+        },
+      )
+      resource = described_class.new(name: '/c0')
+      expect(resource[:storcli_cmd]).to eq('/opt/MegaRAID/storcli/storcli64')
+    end
+
+    it 'uses the storcli_tool from the first controller when controller is all' do
+      allow(Facter).to receive(:value).with(:storcli).and_return(
+        'present' => true,
+        'controllers' => {
+          0 => { 'storcli_tool' => '/usr/sbin/perccli64' },
+        },
+      )
+      resource = described_class.new(name: 'fleet_settings')
+      expect(resource[:storcli_cmd]).to eq('/usr/sbin/perccli64')
+    end
+
+    it 'falls back to /usr/local/sbin/storcli when fact is nil' do
+      allow(Facter).to receive(:value).with(:storcli).and_return(nil)
+      resource = described_class.new(name: '/c0')
+      expect(resource[:storcli_cmd]).to eq('/usr/local/sbin/storcli')
+    end
+
+    it 'falls back to /usr/local/sbin/storcli when fact has no controllers' do
+      allow(Facter).to receive(:value).with(:storcli).and_return('present' => false)
+      resource = described_class.new(name: '/c0')
+      expect(resource[:storcli_cmd]).to eq('/usr/local/sbin/storcli')
+    end
+
+    it 'allows explicit storcli_cmd to override the fact' do
+      allow(Facter).to receive(:value).with(:storcli).and_return(
+        'present' => true,
+        'controllers' => {
+          0 => { 'storcli_tool' => '/opt/MegaRAID/storcli/storcli64' },
+        },
+      )
+      resource = described_class.new(name: '/c0', storcli_cmd: '/usr/local/bin/storcli')
+      expect(resource[:storcli_cmd]).to eq('/usr/local/bin/storcli')
+    end
+  end
+
+  describe 'autorequire' do
+    it 'autorequires the storcli package' do
+      catalog = Puppet::Resource::Catalog.new
+      pkg = Puppet::Type.type(:package).new(name: 'storcli')
+      resource = described_class.new(name: '/c0')
+      catalog.add_resource pkg
+      catalog.add_resource resource
+      expect(resource.autorequire.map { |r| r.source.to_s }).to include('Package[storcli]')
+    end
+
+    it 'autorequires the perccli package' do
+      catalog = Puppet::Resource::Catalog.new
+      pkg = Puppet::Type.type(:package).new(name: 'perccli')
+      resource = described_class.new(name: '/c0')
+      catalog.add_resource pkg
+      catalog.add_resource resource
+      expect(resource.autorequire.map { |r| r.source.to_s }).to include('Package[perccli]')
+    end
+  end
 end
