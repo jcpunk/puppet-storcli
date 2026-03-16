@@ -63,7 +63,9 @@ class Puppet::Provider::Storcli < Puppet::Provider
   # and appends `nolog` to suppress storcli's own log files.
   def storcli_exec(args, failonfail: false)
     cmd = @resource[:storcli_cmd]
-    Puppet::Util::Execution.execute("cd /tmp && #{cmd} #{args} nolog", failonfail: failonfail)
+    Dir.chdir("/tmp") do
+      Puppet::Util::Execution.execute("#{cmd} #{args} nolog", failonfail: failonfail)
+    end
   end
 
   # Run a storcli command with JSON output and return the parsed Hash, or nil.
