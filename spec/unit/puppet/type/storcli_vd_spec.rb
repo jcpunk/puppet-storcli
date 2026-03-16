@@ -120,14 +120,4 @@ describe Puppet::Type.type(:storcli_vd) do
     end
   end
 
-  describe 'autorequire' do
-    it 'autorequires the storcli_packages package' do
-      catalog = Puppet::Resource::Catalog.new
-      pkg = Puppet::Type.type(:package).new(name: 'storcli_packages')
-      resource = described_class.new(name: '/c0/v1')
-      catalog.add_resource pkg
-      catalog.add_resource resource
-      expect(resource.autorequire.map { |r| r.source.to_s }).to include('Package[storcli_packages]')
-    end
-  end
 end

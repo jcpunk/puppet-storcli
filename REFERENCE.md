@@ -98,9 +98,9 @@ Default: value of storcli fact `present` key.
 
 ##### <a name="-storcli--package_name"></a>`package_name`
 
-Data type: `String`
+Data type: `Array[String]`
 
-Specifies the storcli/perccli package name to manage.
+Specifies the storcli/perccli package(s) to manage.
 
 ##### <a name="-storcli--package_ensure"></a>`package_ensure`
 

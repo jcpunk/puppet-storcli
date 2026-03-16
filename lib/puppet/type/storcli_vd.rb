@@ -130,7 +130,7 @@ Puppet::Type.newtype(:storcli_vd) do
     newvalues(:on, :off, :default)
   end
 
-  autorequire(:package) do
-    ['storcli_packages']
-  end
+  # Ordering is handled by init.pp: Class['storcli::install'] -> Storcli_vd <| |>
+  # autorequire(:class) is not supported by Puppet's type system (Class is not a
+  # regular Puppet::Type), so we rely on the explicit ordering in init.pp instead.
 end

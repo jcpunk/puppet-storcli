@@ -22,7 +22,7 @@
 #   Default: value of storcli fact `present` key.
 #
 # @param package_name
-#   Specifies the storcli/perccli package name to manage.
+#   Specifies the storcli/perccli package(s) to manage.
 #
 # @param package_ensure
 #   Package ensure value: 'present', 'latest', or a specific version.
@@ -111,7 +111,7 @@ class storcli (
   # Hiera can convert facts to strings, but we really want a bool
   # https://tickets.puppetlabs.com/browse/PUP-10259
   Variant[Boolean, Enum['true', 'false']] $package_manage,
-  String        $package_name,
+  Array[String] $package_name,
   String        $package_ensure,
   Boolean         $configure_settings,
   Boolean         $controller_manage_rebuild,
