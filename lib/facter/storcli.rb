@@ -76,7 +76,7 @@ class Storcli
   # parse failure. Parse errors are logged at debug level so they appear with
   # `facter --debug` without cluttering normal Puppet runs.
   def exec_json(tool, args)
-    raw = Facter::Util::Resolution.exec("#{tool} #{args}")
+    raw = Dir.chdir("/tmp") { Facter::Util::Resolution.exec("#{tool} #{args} J nolog") }
     return nil unless raw && !raw.empty?
 
     JSON.parse(raw)
@@ -106,7 +106,7 @@ class Storcli
   def collect_controller_info
     @controller_info = {}
 
-    each_controller_response('/call show J nolog') do |tool, controller|
+    each_controller_response('/call show') do |tool, controller|
       next if controller.dig('Command Status', 'Status') == 'Failure'
 
       id = controller.dig('Command Status', 'Controller')
@@ -137,7 +137,7 @@ class Storcli
     @pr_info = {}
     return unless num_controllers.positive?
 
-    each_controller_response('/call show patrolread J nolog') do |_tool, controller|
+    each_controller_response('/call show patrolread') do |_tool, controller|
       id = controller.dig('Command Status', 'Controller')
       next unless id
 
@@ -154,7 +154,7 @@ class Storcli
     @cc_info = {}
     return unless num_controllers.positive?
 
-    each_controller_response('/call show cc J nolog') do |_tool, controller|
+    each_controller_response('/call show cc') do |_tool, controller|
       id = controller.dig('Command Status', 'Controller')
       next unless id
 
@@ -173,7 +173,7 @@ class Storcli
     @controller_settings_info = {}
     return unless num_controllers.positive?
 
-    each_controller_response('/call show all J nolog') do |_tool, controller|
+    each_controller_response('/call show all') do |_tool, controller|
       id = controller.dig('Command Status', 'Controller')
       next unless id
 
@@ -194,7 +194,7 @@ class Storcli
     @bbu_info = {}
     return unless num_controllers.positive?
 
-    each_controller_response('/call show bbu J nolog') do |_tool, controller|
+    each_controller_response('/call show bbu') do |_tool, controller|
       id = controller.dig('Command Status', 'Controller')
       next unless id
 
@@ -401,7 +401,7 @@ class Storcli
 
   # Build a virtual disk hash from VD list item and detailed properties
   def build_virtual_disk(controller_id, vd_id, item, tool)
-    vd_detail = exec_json(tool, "/c#{controller_id}/v#{vd_id} show all J nolog")
+    vd_detail = exec_json(tool, "/c#{controller_id}/v#{vd_id} show all")
     controllers = vd_detail&.fetch('Controllers', [])
     vd_props    = controllers&.first
                              &.dig('Response Data', "VD#{vd_id} Properties") || {}
