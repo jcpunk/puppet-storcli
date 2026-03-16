@@ -268,13 +268,11 @@ class Storcli
   def all_facts
     return { 'present' => false } unless present?
 
-    Dir.chdir('/tmp') do
-      collect_controller_info
-      collect_pr_info
-      collect_cc_info
-      collect_controller_settings
-      collect_bbu_info
-    end
+    collect_controller_info
+    collect_pr_info
+    collect_cc_info
+    collect_controller_settings
+    collect_bbu_info
 
     return { 'present' => false } if num_controllers.zero?
 
