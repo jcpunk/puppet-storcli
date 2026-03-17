@@ -169,6 +169,7 @@ Percentage of IO to dedicate to consistency checks (0-100).
 The following parameters are available in the `storcli_consistencycheck` type.
 
 * [`controller`](#-storcli_consistencycheck--controller)
+* [`ignore_unsupported`](#-storcli_consistencycheck--ignore_unsupported)
 * [`name`](#-storcli_consistencycheck--name)
 * [`provider`](#-storcli_consistencycheck--provider)
 * [`storcli_cmd`](#-storcli_consistencycheck--storcli_cmd)
@@ -177,6 +178,16 @@ The following parameters are available in the `storcli_consistencycheck` type.
 
 Integer controller ID (e.g. 0) or 'all' to target every detected controller.
 Derived from the title when it matches /c<ID>. Defaults to 'all' when unset.
+
+##### <a name="-storcli_consistencycheck--ignore_unsupported"></a>`ignore_unsupported`
+
+Valid values: `true`, `false`
+
+When true, silently downgrades errors from unsupported settings to
+warnings instead of failing the resource.  Useful for fleet-wide
+defaults across heterogeneous hardware.
+
+Default value: `false`
 
 ##### <a name="-storcli_consistencycheck--name"></a>`name`
 
@@ -277,6 +288,7 @@ Sync controller clock with the system clock. Set to :true to enable.
 The following parameters are available in the `storcli_controller` type.
 
 * [`controller`](#-storcli_controller--controller)
+* [`ignore_unsupported`](#-storcli_controller--ignore_unsupported)
 * [`name`](#-storcli_controller--name)
 * [`provider`](#-storcli_controller--provider)
 * [`storcli_cmd`](#-storcli_controller--storcli_cmd)
@@ -287,6 +299,19 @@ The following parameters are available in the `storcli_controller` type.
 
 Integer controller ID (e.g. 0) or 'all' to target every detected controller.
 Derived from the title when it matches /c<ID>. Defaults to 'all' when unset.
+
+##### <a name="-storcli_controller--ignore_unsupported"></a>`ignore_unsupported`
+
+Valid values: `true`, `false`
+
+When true, silently downgrades errors from unsupported settings to
+warnings instead of failing the resource.  Useful for fleet-wide
+defaults across heterogeneous hardware — e.g. a 3008 controller
+that lacks a BBU or certain cache features will not cause a Puppet
+failure when this is enabled.  Non-applicable settings still generate
+a warning so they are visible in reports.
+
+Default value: `false`
 
 ##### <a name="-storcli_controller--name"></a>`name`
 
@@ -381,6 +406,7 @@ Whether to patrol unconfigured areas on drives.
 The following parameters are available in the `storcli_patrolread` type.
 
 * [`controller`](#-storcli_patrolread--controller)
+* [`ignore_unsupported`](#-storcli_patrolread--ignore_unsupported)
 * [`name`](#-storcli_patrolread--name)
 * [`provider`](#-storcli_patrolread--provider)
 * [`storcli_cmd`](#-storcli_patrolread--storcli_cmd)
@@ -389,6 +415,16 @@ The following parameters are available in the `storcli_patrolread` type.
 
 Integer controller ID (e.g. 0) or 'all' to target every detected controller.
 Derived from the title when it matches /c<ID>. Defaults to 'all' when unset.
+
+##### <a name="-storcli_patrolread--ignore_unsupported"></a>`ignore_unsupported`
+
+Valid values: `true`, `false`
+
+When true, silently downgrades errors from unsupported settings to
+warnings instead of failing the resource.  Useful for fleet-wide
+defaults across heterogeneous hardware.
+
+Default value: `false`
 
 ##### <a name="-storcli_patrolread--name"></a>`name`
 
@@ -480,6 +516,7 @@ Write cache policy: 'wt' (WriteThrough), 'wb' (WriteBack), or 'awb' (AlwaysWrite
 The following parameters are available in the `storcli_vd` type.
 
 * [`controller`](#-storcli_vd--controller)
+* [`ignore_unsupported`](#-storcli_vd--ignore_unsupported)
 * [`name`](#-storcli_vd--name)
 * [`provider`](#-storcli_vd--provider)
 * [`storcli_cmd`](#-storcli_vd--storcli_cmd)
@@ -489,6 +526,17 @@ The following parameters are available in the `storcli_vd` type.
 
 Integer controller ID (e.g. 0) or 'all' to target every detected controller.
 Derived from the title when it matches /c<ID>. Defaults to 'all' when unset.
+
+##### <a name="-storcli_vd--ignore_unsupported"></a>`ignore_unsupported`
+
+Valid values: `true`, `false`
+
+When true, silently downgrades errors from unsupported settings to
+warnings instead of failing the resource.  Useful for fleet-wide
+defaults across heterogeneous hardware — e.g. a controller without
+IO policy support will not cause a Puppet failure.
+
+Default value: `false`
 
 ##### <a name="-storcli_vd--name"></a>`name`
 
