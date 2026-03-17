@@ -205,10 +205,12 @@ class Puppet::Provider::Storcli < Puppet::Provider
     [:true, true].include?(val) ? 'on' : 'off'
   end
 
+  # Convert an on/off string to a Puppet boolean symbol.
   def onoff_to_bool(val)
     val.to_s.casecmp('on').zero? ? :true : :false
   end
 
+  # Convert an enabled/disabled string to a Puppet boolean symbol.
   def enabled_to_bool(val)
     val.to_s.casecmp('enabled').zero? ? :true : :false
   end
