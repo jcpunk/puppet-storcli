@@ -88,5 +88,4 @@ describe Puppet::Type.type(:storcli_consistencycheck) do
       expect(resource[:ignore_unsupported]).to eq(:false)
     end
   end
-
 end

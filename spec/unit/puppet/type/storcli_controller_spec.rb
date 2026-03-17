@@ -104,5 +104,4 @@ describe Puppet::Type.type(:storcli_controller) do
       expect(resource[:ignore_unsupported]).to eq(:false)
     end
   end
-
 end

@@ -48,7 +48,7 @@ Puppet::Type.newtype(:storcli_vd) do
       name = resource[:name].to_s
       if name =~ %r{/c(\d+)(?:/|$)}
         Regexp.last_match(1).to_i
-      elsif name =~ %r{/call(?:/|$)}
+      elsif %r{/call(?:/|$)}.match?(name)
         'all'
       else
         'all'
@@ -59,7 +59,7 @@ Puppet::Type.newtype(:storcli_vd) do
         raise Puppet::Error, "controller must be a non-negative integer or 'all'"
       end
     end
-    munge { |v| v.to_s == 'all' ? 'all' : v.to_i }
+    munge { |v| (v.to_s == 'all') ? 'all' : v.to_i }
   end
 
   newparam(:virtual_disk) do
@@ -71,7 +71,7 @@ Puppet::Type.newtype(:storcli_vd) do
       name = resource[:name].to_s
       if name =~ %r{/v(\d+)(?:/|$)}
         Regexp.last_match(1).to_i
-      elsif name =~ %r{/vall(?:/|$)}
+      elsif %r{/vall(?:/|$)}.match?(name)
         'all'
       else
         'all'
@@ -82,7 +82,7 @@ Puppet::Type.newtype(:storcli_vd) do
         raise Puppet::Error, "virtual_disk must be a non-negative integer or 'all'"
       end
     end
-    munge { |v| v.to_s == 'all' ? 'all' : v.to_i }
+    munge { |v| (v.to_s == 'all') ? 'all' : v.to_i }
   end
 
   newparam(:storcli_cmd) do

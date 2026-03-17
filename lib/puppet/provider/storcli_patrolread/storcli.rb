@@ -5,7 +5,7 @@ require File.join(File.dirname(__FILE__), '..', 'storcli')
 
 Puppet::Type.type(:storcli_patrolread).provide(
   :storcli,
-  parent: Puppet::Provider::Storcli
+  parent: Puppet::Provider::Storcli,
 ) do
   desc 'Manage MegaRAID patrol read settings via storcli/perccli JSON interface'
 
@@ -15,9 +15,9 @@ Puppet::Type.type(:storcli_patrolread).provide(
       next nil if val.nil?
 
       case val
-      when /Auto/i    then :auto
-      when /Manual/i  then :manual
-      when /Disable/i then :off
+      when %r{Auto}i    then :auto
+      when %r{Manual}i  then :manual
+      when %r{Disable}i then :off
       else val.to_s.downcase.to_sym
       end
     end
@@ -36,7 +36,7 @@ Puppet::Type.type(:storcli_patrolread).provide(
       val = lookup_value(props, 'PR Execution Delay')
       next nil if val.nil?
 
-      val.to_s.gsub(/\s*hours?.*/, '').strip.to_i
+      val.to_s.gsub(%r{\s*hours?.*}, '').strip.to_i
     end
   end
 
@@ -49,7 +49,7 @@ Puppet::Type.type(:storcli_patrolread).provide(
       val = lookup_value(props, 'Patrol Read Rate')
       next nil if val.nil?
 
-      val.to_s.gsub('%', '').strip.to_i
+      val.to_s.delete('%').strip.to_i
     end
   end
 

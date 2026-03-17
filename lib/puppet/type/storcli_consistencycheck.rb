@@ -36,7 +36,7 @@ Puppet::Type.newtype(:storcli_consistencycheck) do
       name = resource[:name].to_s
       if name =~ %r{/c(\d+)(?:/|$)}
         Regexp.last_match(1).to_i
-      elsif name =~ %r{/call(?:/|$)}
+      elsif %r{/call(?:/|$)}.match?(name)
         'all'
       else
         'all'
@@ -47,7 +47,7 @@ Puppet::Type.newtype(:storcli_consistencycheck) do
         raise Puppet::Error, "controller must be a non-negative integer or 'all'"
       end
     end
-    munge { |v| v.to_s == 'all' ? 'all' : v.to_i }
+    munge { |v| (v.to_s == 'all') ? 'all' : v.to_i }
   end
 
   newparam(:storcli_cmd) do
@@ -85,7 +85,7 @@ Puppet::Type.newtype(:storcli_consistencycheck) do
   newproperty(:delay) do
     desc 'Hours between consistency check runs.'
     validate do |value|
-      raise Puppet::Error, 'delay must be a non-negative integer' unless value.to_s =~ %r{^\d+$}
+      raise Puppet::Error, 'delay must be a non-negative integer' unless %r{^\d+$}.match?(value.to_s)
     end
     munge { |v| v.to_i }
 

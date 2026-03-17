@@ -5,7 +5,7 @@ require File.join(File.dirname(__FILE__), '..', 'storcli')
 
 Puppet::Type.type(:storcli_consistencycheck).provide(
   :storcli,
-  parent: Puppet::Provider::Storcli
+  parent: Puppet::Provider::Storcli,
 ) do
   desc 'Manage MegaRAID consistency check settings via storcli/perccli JSON interface'
 
@@ -15,9 +15,9 @@ Puppet::Type.type(:storcli_consistencycheck).provide(
       next nil if val.nil?
 
       case val
-      when /Concurrent/i  then :conc
-      when /Sequential/i  then :seq
-      when /Disable/i     then :off
+      when %r{Concurrent}i  then :conc
+      when %r{Sequential}i  then :seq
+      when %r{Disable}i     then :off
       else val.to_s.downcase.to_sym
       end
     end
@@ -37,7 +37,7 @@ Puppet::Type.type(:storcli_consistencycheck).provide(
       val = lookup_value(props, 'CC Execution Delay')
       next nil if val.nil?
 
-      val.to_s.gsub(/\s*hours?.*/, '').strip.to_i
+      val.to_s.gsub(%r{\s*hours?.*}, '').strip.to_i
     end
   end
 
@@ -50,7 +50,7 @@ Puppet::Type.type(:storcli_consistencycheck).provide(
       val = lookup_value(props, 'CC Rate')
       next nil if val.nil?
 
-      val.to_s.gsub('%', '').strip.to_i
+      val.to_s.delete('%').strip.to_i
     end
   end
 

@@ -63,7 +63,7 @@ class Puppet::Provider::Storcli < Puppet::Provider
   # and appends `nolog` to suppress storcli's own log files.
   def storcli_exec(args, failonfail: false)
     cmd = @resource[:storcli_cmd]
-    Dir.chdir("/tmp") do
+    Dir.chdir('/tmp') do
       Puppet::Util::Execution.execute("#{cmd} #{args} nolog", failonfail: failonfail)
     end
   end
@@ -161,11 +161,11 @@ class Puppet::Provider::Storcli < Puppet::Provider
   # returns the first non-nil value (which won't match the desired state,
   # triggering a set on all controllers).  Returns nil when no controllers
   # are found.
-  def read_property(setting, &block)
-    values = controller_ids.map do |cid|
+  def read_property(setting)
+    values = controller_ids.map { |cid|
       props = show_property_for(cid, setting)
-      block.call(cid, props)
-    end.compact
+      yield(cid, props)
+    }.compact
 
     return nil if values.empty?
 
@@ -202,7 +202,7 @@ class Puppet::Provider::Storcli < Puppet::Provider
   # ---------------------------------------------------------------------------
 
   def bool_to_onoff(val)
-    (val == :true || val == true) ? 'on' : 'off'
+    [:true, true].include?(val) ? 'on' : 'off'
   end
 
   def onoff_to_bool(val)
@@ -218,7 +218,7 @@ class Puppet::Provider::Storcli < Puppet::Provider
   # failures to warnings instead of raising.
   def ignore_unsupported?
     @resource.class.validparameter?(:ignore_unsupported) &&
-      (@resource[:ignore_unsupported] == :true || @resource[:ignore_unsupported] == true)
+      [:true, true].include?(@resource[:ignore_unsupported])
   end
 
   private

@@ -40,7 +40,7 @@ Puppet::Type.newtype(:storcli_controller) do
       name = resource[:name].to_s
       if name =~ %r{/c(\d+)(?:/|$)}
         Regexp.last_match(1).to_i
-      elsif name =~ %r{/call(?:/|$)}
+      elsif %r{/call(?:/|$)}.match?(name)
         'all'
       else
         'all'
@@ -51,7 +51,7 @@ Puppet::Type.newtype(:storcli_controller) do
         raise Puppet::Error, "controller must be a non-negative integer or 'all'"
       end
     end
-    munge { |v| v.to_s == 'all' ? 'all' : v.to_i }
+    munge { |v| (v.to_s == 'all') ? 'all' : v.to_i }
   end
 
   newparam(:storcli_cmd) do
@@ -127,7 +127,7 @@ Puppet::Type.newtype(:storcli_controller) do
   newproperty(:perfmode) do
     desc 'Performance mode (0 = IOPS, higher values favour low latency).'
     validate do |value|
-      raise Puppet::Error, 'perfmode must be a non-negative integer' unless value.to_s =~ %r{^\d+$}
+      raise Puppet::Error, 'perfmode must be a non-negative integer' unless %r{^\d+$}.match?(value.to_s)
     end
     munge { |v| v.to_i }
 
@@ -179,7 +179,7 @@ Puppet::Type.newtype(:storcli_controller) do
     desc 'Seconds of drift allowed before a time sync is triggered.'
     defaultto 120
     validate do |value|
-      raise Puppet::Error, 'time_tolerance must be a non-negative integer' unless value.to_s =~ %r{^\d+$}
+      raise Puppet::Error, 'time_tolerance must be a non-negative integer' unless %r{^\d+$}.match?(value.to_s)
     end
     munge { |v| v.to_i }
   end

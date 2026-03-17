@@ -5,7 +5,7 @@ require File.join(File.dirname(__FILE__), '..', 'storcli')
 
 Puppet::Type.type(:storcli_controller).provide(
   :storcli,
-  parent: Puppet::Provider::Storcli
+  parent: Puppet::Provider::Storcli,
 ) do
   desc 'Manage MegaRAID controller settings via storcli/perccli JSON interface'
 
@@ -71,7 +71,7 @@ Puppet::Type.type(:storcli_controller).provide(
   def rebuildrate
     read_property('rebuildrate') do |_cid, props|
       val = lookup_value(props, 'Rebuild Rate')
-      val.nil? ? nil : val.to_s.gsub('%', '').strip.to_i
+      val.nil? ? nil : val.to_s.delete('%').strip.to_i
     end
   end
 
@@ -93,7 +93,7 @@ Puppet::Type.type(:storcli_controller).provide(
   def cacheflushinterval
     read_property('cacheflushint') do |_cid, props|
       val = lookup_value(props, 'Cache Flush Interval')
-      val.nil? ? nil : val.to_s.gsub(/\s*sec.*/, '').strip.to_i
+      val.nil? ? nil : val.to_s.gsub(%r{\s*sec.*}, '').strip.to_i
     end
   end
 
@@ -104,7 +104,7 @@ Puppet::Type.type(:storcli_controller).provide(
   def smartpollinterval
     read_property('smartpollinterval') do |_cid, props|
       val = lookup_value(props, 'SmartPollInterval')
-      val.nil? ? nil : val.to_s.gsub(/\s*sec.*/, '').strip.to_i
+      val.nil? ? nil : val.to_s.gsub(%r{\s*sec.*}, '').strip.to_i
     end
   end
 
@@ -153,7 +153,7 @@ Puppet::Type.type(:storcli_controller).provide(
     return false if controller_time.nil?
 
     require 'time'
-    normalized = controller_time.to_s.gsub('/', '-')
+    normalized = controller_time.to_s.tr('/', '-')
     if use_utc
       ct_epoch = Time.parse("#{normalized} UTC").to_i
       sys_epoch = Time.now.utc.to_i

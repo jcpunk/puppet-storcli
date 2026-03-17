@@ -5,7 +5,7 @@ require File.join(File.dirname(__FILE__), '..', 'storcli')
 
 Puppet::Type.type(:storcli_vd).provide(
   :storcli,
-  parent: Puppet::Provider::Storcli
+  parent: Puppet::Provider::Storcli,
 ) do
   desc 'Manage MegaRAID virtual disk settings via storcli/perccli JSON interface'
 
@@ -45,9 +45,9 @@ Puppet::Type.type(:storcli_vd).provide(
       raw = vd_props['Write Cache(initial setting)']
       if raw
         case raw
-        when /AlwaysWriteBack/i then :awb
-        when /WriteBack/i       then :wb
-        when /WriteThrough/i    then :wt
+        when %r{AlwaysWriteBack}i then :awb
+        when %r{WriteBack}i       then :wb
+        when %r{WriteThrough}i    then :wt
         else
           # Parse from the compact Cache token in VD LIST
           parse_write_from_cache_token(vd_info)

@@ -136,5 +136,4 @@ describe Puppet::Type.type(:storcli_vd) do
       expect(resource[:ignore_unsupported]).to eq(:false)
     end
   end
-
 end
