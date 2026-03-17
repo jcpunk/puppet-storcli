@@ -169,7 +169,7 @@ class Puppet::Provider::Storcli < Puppet::Provider
 
     return nil if values.empty?
 
-    values.uniq.size == 1 ? values.first : values.first
+    values.first
   end
 
   # Read a VD-level property from every managed VD target.
@@ -194,7 +194,7 @@ class Puppet::Provider::Storcli < Puppet::Provider
     values.compact!
     return nil if values.empty?
 
-    values.uniq.size == 1 ? values.first : values.first
+    values.first
   end
 
   # ---------------------------------------------------------------------------

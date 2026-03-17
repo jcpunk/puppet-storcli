@@ -82,7 +82,7 @@ Puppet::Type.type(:storcli_controller).provide(
   def perfmode
     read_property('perfmode') do |_cid, props|
       val = lookup_value(props, 'Perf Mode')
-      val.nil? ? nil : val.to_i
+      val&.to_i
     end
   end
 
